@@ -1,0 +1,13 @@
+[server]
+headless = false
+maxUploadSize = 50
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# interfaccia essenziale: niente pulsante "Deploy" e menu sviluppatore
+toolbarMode = "minimal"
+
+# Il tema (chiaro / scuro / automatico) si sceglie dalla barra laterale dell'app:
+# non impostare qui la sezione [theme], altrimenti la modalità "Auto" non segue più Windows.
