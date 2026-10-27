@@ -4,7 +4,7 @@
 Track spending, income, subscriptions, savings goals and investments in a clean dashboard. No cloud account,
 no servers: all your data stays in a local database on your own machine.
 
-*Made by **K Studio Design** in Italy · version 1.0.0 · free for personal and noncommercial use
+*Made by **K Studio Design** in Italy · version 1.1.0 · free for personal and noncommercial use
 ([PolyForm Noncommercial 1.0.0](LICENSE.md)) · [Leggi in italiano](README.it.md)*
 
 ![MoneyBoard demo](docs/media/moneyboard-demo.gif)
@@ -22,6 +22,9 @@ no servers: all your data stays in a local database on your own machine.
 - **Calendar**: each day colored by how much you spent, plus the charges expected in the coming days.
 - **Subscriptions**: recurring payments are detected automatically, with monthly and yearly cost, next charge
   and price changes.
+- **Salary schedule**: tell the app when you get paid (last or first working day, any days of the month such as
+  the 15th and the 31st, every week or every 2 weeks, with Italian or US holidays), and it predicts your next
+  paychecks.
 - **Alerts**: possible double charges, unusual expenses, categories above average, new or more expensive
   subscriptions.
 - **Goals**: savings goals with deadlines, from manual deposits, an account balance or your savings since a date.

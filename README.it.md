@@ -5,7 +5,7 @@
 App per gestire spese, entrate, abbonamenti, obiettivi di risparmio e investimenti, con i dati salvati **solo sul
 tuo computer** (nessun server, nessun account online). Interfaccia in italiano e in inglese.
 
-Fatta da **K Studio Design** in Italia · versione 1.0.0 · licenza
+Fatta da **K Studio Design** in Italia · versione 1.1.0 · licenza
 [PolyForm Noncommercial 1.0.0](LICENSE.md): gratuita per uso personale e non commerciale (vedi sotto).
 
 ## Avvio rapido
@@ -123,7 +123,7 @@ Tutto si configura in *Impostazioni → Cartelle e backup* (menu dell'avatar in 
 | 🧾 Movimenti | Inserimento manuale in qualsiasi valuta (cambio automatico alla data), modifica, eliminazione, filtri, export CSV, regole |
 | 📊 Analisi | Periodi preimpostati o personalizzati; totali, medie (mensile/giornaliera/per movimento), tasso di risparmio, confronto col periodo precedente, grafici per mese e categoria, andamento, top esercenti, tabella mesi × categorie |
 | 📅 Calendario | Il mese come calendario: ogni giorno colorato in base a quanto hai speso, entrate in verde, addebiti previsti (abbonamenti, stipendio) nei giorni futuri. Clic su un giorno per i movimenti; giorni senza spese, giorno più costoso, spesa media per giorno della settimana |
-| 🔁 Abbonamenti | Pagamenti ricorrenti trovati in automatico (le date previste tengono conto di regole come «ultimo giorno lavorativo del mese», con weekend e festività italiane; per lo stipendio si sceglie nel Profilo) (Netflix, Spotify, rate, canoni, bollette…): costo al mese e all'anno, prossimo addebito, cambi di prezzo, quelli non più addebitati; entrate ricorrenti (stipendio). Si possono rinominare o nascondere |
+| 🔁 Abbonamenti | Pagamenti ricorrenti trovati in automatico (le date previste tengono conto di regole come «ultimo giorno lavorativo del mese», con weekend e festività italiane; per lo stipendio si sceglie nel Profilo: ultimo o primo giorno lavorativo, uno o più giorni del mese a scelta, ogni settimana o ogni 2 settimane, con festività italiane o americane) (Netflix, Spotify, rate, canoni, bollette…): costo al mese e all'anno, prossimo addebito, cambi di prezzo, quelli non più addebitati; entrate ricorrenti (stipendio). Si possono rinominare o nascondere |
 | 🔔 Avvisi | Possibili addebiti doppi, spese molto più alte del solito presso lo stesso negozio, le spese più alte dell'anno, categorie già sopra la media del mese, abbonamenti nuovi, aumentati o non più addebitati. Il numero compare nel menu; «Ignora» li toglie |
 | 🎯 Obiettivi | Obiettivi di risparmio con scadenza: versamenti a mano, saldo di un conto (es. il conto deposito) oppure risparmio (entrate meno spese) da una data. Avanzamento, quanto serve al mese, previsione al ritmo attuale, confronto con il tuo risparmio medio |
 | 📥 Importa (menu dell'avatar) | Estratti **Fineco** (Excel), **Revolut** (estratto *consolidato* Excel con tutti i conti/valute, oppure CSV), **Chase** (CSV del conto o della carta, oppure QFX/OFX: riconosce da solo il tipo, i pagamenti della carta, gli Zelle verso te stesso e i resi), o qualunque CSV/Excel con mappatura colonne. Duplicati ignorati, categorie automatiche |
