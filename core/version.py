@@ -1,6 +1,6 @@
 """Versione dell'app e autore (mostrati in fondo alla barra laterale)."""
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 AUTHOR = "K Studio Design"
 
 
