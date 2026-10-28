@@ -1,4 +1,4 @@
-"""Dati fittizi per gli account di prova.
+"""Dati fittizi per gli account di prova (in italiano o in inglese).
 
 Tutto è inventato: persone, datore di lavoro, negozi, conti e importi (generati a caso con un seme fisso, quindi
 sempre uguali). Gli schemi ricalcano un uso realistico dell'app, così ogni funzione ha qualcosa da mostrare:
@@ -39,14 +39,72 @@ SHOPS = {
 }
 FRIENDS = ["Marco Verdi", "Giulia Neri", "Paolo Gallo", "Sara Fontana"]
 
+# ---- versione inglese (demo online): stessi movimenti, nomi e descrizioni in inglese
+EN = {
+    "owner": "Alex Morgan", "main": "Checking Account", "online": "Online Account",
+    "friends": ["Sam Carter", "Emma Wilson", "Leo Martin", "Chloe Brooks"],
+    "shops": {"SUPERMERCATO SOLE MILANO": "SUNNY SUPERMARKET", "COOP DELLA VALLE": "VALLEY CO-OP",
+              "DISCOUNT PIU'": "DISCOUNT PLUS", "MERCATO RIONALE": "FARMERS MARKET",
+              "PANIFICIO LE SPIGHE": "GOLDEN WHEAT BAKERY", "BAR CENTRALE": "CENTRAL CAFE",
+              "PIZZERIA DA GINO": "GINO'S PIZZERIA", "TRATTORIA IL PORTICO": "IL PORTICO TRATTORIA",
+              "CAFFE' DEL CORSO": "CORSO COFFEE", "STAZIONE Q-ENERGY": "Q-ENERGY STATION",
+              "DISTRIBUTORE AURORA": "AURORA FUEL", "METRO CITTA' BIGLIETTI": "CITY METRO TICKETS",
+              "TAXI RAPIDO": "RAPID TAXI", "MODA URBANA": "URBAN FASHION", "FARMACIA SAN MARCO": "ST MARK PHARMACY",
+              "TICKETPOINT CONCERTI": "TICKETPOINT CONCERTS", "BARBIERE DA TONI": "TONI'S BARBER",
+              "BRICO CASA": "HOME DIY STORE"},
+    "cards": ("Checking Visa", "Online Mastercard"),
+    "goals": ("Trip to Japan", "monthly deposit", "Emergency fund"),
+    "instrument": ("Demo holding", "Demo purchase"),
+}
+# descrizioni scritte dal programma (in italiano) -> inglese; i testi dei dividendi e del bollo restano quelli
+# dell'estratto (servono a riconoscerli nella sezione Investimenti)
+_EN_TEXT = [
+    (r"^Stipendio da ROSSI MECCANICA S\.R\.L\. - COMPETENZE (\d\d/\d{4})$", r"Salary from NORTHWIND LTD - PAYROLL \1"),
+    (r"^Bonifico a IMMOBILIARE AURORA - Affitto$", "Transfer to AURORA PROPERTIES - Rent"),
+    (r"^FIBRANET - Internet casa$", "FIBRANET - Home internet"),
+    (r"^TELCOMOBILE ricarica automatica$", "TELCOMOBILE auto top-up"),
+    (r"^FITLAB PALESTRA - quota mensile$", "FITLAB GYM - monthly fee"),
+    (r"^Canone mensile conto$", "MYBANK - monthly account fee"),
+    (r"^LUCE&GAS ENERGIA - bolletta$", "VOLTA ENERGY - power & gas bill"),
+    (r"^Bonifico a (.+) - Ricarica conto online$", r"Transfer to \1 - Online account top-up"),
+    (r"^Ricarica da (.+)$", r"Top-up from \1"),
+    (r"^PRELIEVO BANCOMAT$", "ATM WITHDRAWAL"),
+    (r"^Bonifico da (.+) - quota cena$", r"Transfer from \1 - dinner share"),
+    (r"^Bonifico a (.+) - regalo di compleanno$", r"Transfer to \1 - birthday gift"),
+    (r"^MOBILI CASA NUOVA - divano$", "HOMESTYLE FURNITURE - sofa"),
+    (r"^SKYLINE AIRWAYS - volo New York$", "SKYLINE AIRWAYS - flight to New York"),
+    (r"^Cambio valuta EUR > USD$", "Currency exchange EUR > USD"),
+    (r"^Cambio valuta: accredito USD$", "Currency exchange: USD credit"),
+]
+
+
+def _names(lang: str):
+    """(conto principale, conto online, intestatario, amici, negozi) nella lingua dei dati di prova."""
+    if lang == "en":
+        shops = {c: [(EN["shops"].get(n, n), lo, hi) for n, lo, hi in v] for c, v in SHOPS.items()}
+        return EN["main"], EN["online"], EN["owner"], EN["friends"], shops
+    return MAIN, ONLINE, OWNER, FRIENDS, SHOPS
+
+
+def _english(rows: list[dict]) -> list[dict]:
+    import re
+    for r in rows:
+        for pat, new in _EN_TEXT:
+            out = re.sub(pat, new, r["description"])
+            if out != r["description"]:
+                r["description"] = out
+                break
+    return rows
+
 
 def _last_business_day(y: int, m: int) -> date:
     from core import recurring
     return recurring.last_business_day(y, m).date()
 
 
-def generate(today: date | None = None, seed: int = 20261021) -> list[dict]:
-    """Movimenti fittizi degli ultimi 12 mesi (fino a oggi)."""
+def generate(today: date | None = None, seed: int = 20261021, lang: str = "it") -> list[dict]:
+    """Movimenti fittizi degli ultimi 12 mesi (fino a oggi), in italiano o in inglese."""
+    MAIN, ONLINE, OWNER, FRIENDS, SHOPS = _names(lang)  # noqa: N806  (stessi movimenti, nomi nella lingua scelta)
     rnd = random.Random(seed)
     today = today or date.today()
     start = (today.replace(day=1) - pd.DateOffset(months=11)).date()
@@ -142,6 +200,8 @@ def generate(today: date | None = None, seed: int = 20261021) -> list[dict]:
     add(dup, "SHOPONLINE MARKET", -49.90, "Shopping e acquisti online", ONLINE)
     add(dup, "SHOPONLINE MARKET", -49.90, "Shopping e acquisti online", ONLINE)
 
+    if lang == "en":
+        _english(rows)
     rows.sort(key=lambda r: r["date"])
     if len(rows) > MAX_TX:   # sicurezza: mai oltre il limite (si tolgono le spese variabili più vecchie)
         rows = rows[-MAX_TX:]
@@ -161,12 +221,15 @@ CARD_CATEGORIES = ("Spesa alimentare", "Ristoranti e bar", "Carburante", "Traspo
 DEMO_CARDS = {MAIN: ("4821", "Visa Debit", "Visa del conto"), ONLINE: ("7310", "Mastercard", "Mastercard online")}
 
 
-def assign_cards() -> None:
+def assign_cards(lang: str = "it") -> None:
     """Carte fittizie: i pagamenti nei negozi e i prelievi del conto corrente con la Visa, quelli del conto
     online con la Mastercard (per far vedere la sezione Carte anche nell'account di prova)."""
     marks = ",".join("?" * len(CARD_CATEGORIES))
+    cards = DEMO_CARDS
+    if lang == "en":
+        cards = {EN["main"]: ("4821", "Visa Debit", EN["cards"][0]), EN["online"]: ("7310", "Mastercard", EN["cards"][1])}
     with db.connect() as con:
-        for account, (digits, kind, name) in DEMO_CARDS.items():
+        for account, (digits, kind, name) in cards.items():
             con.execute(f"UPDATE transactions SET card=? WHERE account=? AND amount < 0 AND category IN ({marks})",
                         (digits, account, *CARD_CATEGORIES))
             con.execute("INSERT OR IGNORE INTO cards(account, digits, kind, name) VALUES (?,?,?,?)",
@@ -174,7 +237,7 @@ def assign_cards() -> None:
     db.set_setting("demo_cards", "1")
 
 
-def seed(today: date | None = None) -> int:
+def seed(today: date | None = None, lang: str | None = None) -> int:
     """Svuota il database dell'account di prova e lo riempie con i dati fittizi. Ritorna i movimenti inseriti.
     Funziona SOLO per un account ospite (mai sul database del proprietario)."""
     if not db.is_demo():
@@ -182,42 +245,75 @@ def seed(today: date | None = None) -> int:
     from core import forecast, securities
 
     today = today or date.today()
+    lang = lang if lang in ("it", "en") else i18n.lang()
+    main, online, owner, _friends, _shops = _names(lang)
     db.init_db()
     with db.connect() as con:
         for t in ("transactions", "goal_moves", "goals", "security_trades", "instruments", "exchange_balances",
-                  "exchanges", "bank_accounts", "tx_links", "cards"):
+                  "exchanges", "bank_accounts", "tx_links", "cards", "budgets", "shared", "people"):
             con.execute(f"DELETE FROM {t}")
         con.execute("DELETE FROM settings WHERE key NOT IN ('base_currency','auto_update_prices','eb_app_id',"
                     "'eb_redirect_url','colors_version','rules_version')")
-    db.set_setting("owner_names", OWNER.upper())
-    db.set_setting("profile_name", OWNER)
+    db.set_setting("owner_names", owner.upper())
+    db.set_setting("profile_name", owner)
+    db.set_setting(i18n.SETTING_KEY, lang)
     db.set_setting("profile_color", "blu")
     db.set_setting("theme", "scuro")
     db.set_setting("backup_auto", "0")      # niente backup automatici per i dati di prova
-    rows = generate(today)
+    rows = generate(today, lang=lang)
     ins, _ = db.insert_transactions(rows)
-    assign_cards()
+    assign_cards(lang)
 
     tx = db.transactions_df()
     # saldi reali dei conti (per la previsione a fine mese)
-    forecast.set_real_balance(MAIN, "EUR", 3480.25, tx)
-    forecast.set_real_balance(ONLINE, "EUR", 412.60, tx)
+    forecast.set_real_balance(main, "EUR", 3480.25, tx)
+    forecast.set_real_balance(online, "EUR", 412.60, tx)
     # obiettivi di risparmio
-    g1 = db.save_goal({"name": "Viaggio in Giappone", "target": 3500, "deadline": date(today.year + 1, 6, 30).isoformat(),
+    g_trip, g_move, g_fund = EN["goals"] if lang == "en" else ("Viaggio in Giappone", "versamento mensile",
+                                                                "Fondo emergenza")
+    g1 = db.save_goal({"name": g_trip, "target": 3500, "deadline": date(today.year + 1, 6, 30).isoformat(),
                        "start_date": (today - timedelta(days=200)).isoformat(), "mode": "manuale", "initial": 400,
                        "color": "#F0627E"})
     for i in range(6):
-        db.add_goal_move(g1, (today - timedelta(days=180 - 30 * i)).isoformat(), 200, "versamento mensile")
-    db.save_goal({"name": "Fondo emergenza", "target": 6000, "deadline": None,
+        db.add_goal_move(g1, (today - timedelta(days=180 - 30 * i)).isoformat(), 200, g_move)
+    db.save_goal({"name": g_fund, "target": 6000, "deadline": None,
                   "start_date": (today - timedelta(days=120)).isoformat(), "mode": "risparmio", "initial": 2500,
                   "color": "#14AE9E"})
     # portafoglio titoli: l'ETF che paga i dividendi
-    securities.save_instrument("IE00B4L5Y983", "SWDA.MI", "iShares Core MSCI World", "ETF", "EUR",
-                               "Titolo dell'account di prova")
-    securities.add_trade("IE00B4L5Y983", date(today.year - 1, 3, 10), "acquisto", 40, 82.50, 0, "EUR", MAIN,
-                         "Acquisto di prova")
+    n_instr, n_trade = EN["instrument"] if lang == "en" else ("Titolo dell'account di prova", "Acquisto di prova")
+    securities.save_instrument("IE00B4L5Y983", "SWDA.MI", "iShares Core MSCI World", "ETF", "EUR", n_instr)
+    securities.add_trade("IE00B4L5Y983", date(today.year - 1, 3, 10), "acquisto", 40, 82.50, 0, "EUR", main,
+                         n_trade)
+    _extras(today, lang)
     db.set_setting(SEEDED_KEY, json.dumps({"when": date.today().isoformat(), "rows": ins}))
     return ins
+
+
+def _extras(today: date, lang: str) -> None:
+    """Esempi delle funzioni più nuove: budget, un acquisto online diviso in due categorie e una cena pagata
+    anche per un amico (spese condivise)."""
+    from core import budgets, shared
+    budgets.save({"Spesa alimentare": 300, "Ristoranti e bar": 150, "Shopping e acquisti online": 150,
+                  "Svago e tempo libero": 60, "Carburante": 120}, 2400)
+    tx = db.transactions_df()
+    m0 = pd.Timestamp(today.replace(day=1))
+    shop = tx[(tx["category"] == "Shopping e acquisti online") & (tx["amount"] <= -40) & (tx["date"] >= m0 - pd.DateOffset(months=2))]
+    shop = shop[~shop.duplicated(["date", "description", "amount"], keep=False)]   # non l'addebito doppio di prova
+    if not shop.empty:
+        r = shop.iloc[0]
+        amt = round(abs(float(r["amount"])), 2)
+        gift = round(min(25.0, amt / 2), 2)
+        db.split_transaction(int(r["id"]), [("Shopping e acquisti online", round(amt - gift, 2), ""),
+                                            ("Regali e donazioni", gift, "gift" if lang == "en" else "regalo")])
+    dinner = tx[(tx["category"] == "Ristoranti e bar") & (tx["amount"] <= -30) & (tx["date"] >= m0 - pd.DateOffset(months=1))]
+    friend = EN["friends"][0] if lang == "en" else FRIENDS[0]
+    pid = shared.add_person(friend)
+    if not dinner.empty:
+        r = dinner.iloc[0]
+        shared.share_transaction(int(r["id"]), pid, round(abs(float(r["amount"])) / 2, 2),
+                                 note=f"{friend}'s share" if lang == "en" else f"Quota di {friend}")
+    shared.add_entry(pid, today - timedelta(days=12), "Concert tickets" if lang == "en" else "Biglietti del concerto",
+                     -35.0, "EUR", "manuale")
 
 
 def ensure_seeded() -> None:

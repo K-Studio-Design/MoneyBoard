@@ -4,7 +4,7 @@
 Track spending, income, subscriptions, savings goals and investments in a clean dashboard. No cloud account,
 no servers: all your data stays in a local database on your own machine.
 
-*Made by **K Studio Design** in Italy · version 1.1.0 · free for personal and noncommercial use
+*Made by **K Studio Design** in Italy · version 1.2.0 · free for personal and noncommercial use
 ([PolyForm Noncommercial 1.0.0](LICENSE.md)) · [Leggi in italiano](README.it.md)*
 
 ![MoneyBoard demo](docs/media/moneyboard-demo.gif)
@@ -17,6 +17,12 @@ no servers: all your data stays in a local database on your own machine.
   category and a month-end forecast.
 - **Transactions**: add, edit, filter and export to CSV. Categories are assigned automatically by hundreds of built-in
   keywords plus your own rules. Click any transaction to see how often and how much you spend there.
+- **Budgets**: a monthly cap per category (and for total spending), with progress bars, a daily allowance for the
+  rest of the month and alerts at 80% and when you go over. One click fills them in from your last 3 months.
+- **Split transactions**: split one payment across several categories (for example an online order with a gift and
+  something for the house). The total stays the one from the bank.
+- **Shared expenses**: keep track of money with friends, a partner or roommates. Share part of an expense you paid,
+  link repayments, and see who owes whom. Only your part counts in your spending.
 - **Analysis**: any period you like, with totals, averages, savings rate, trends, top merchants and a
   months × categories table.
 - **Calendar**: each day colored by how much you spent, plus the charges expected in the coming days.
@@ -25,8 +31,10 @@ no servers: all your data stays in a local database on your own machine.
 - **Salary schedule**: tell the app when you get paid (last or first working day, any days of the month such as
   the 15th and the 31st, every week or every 2 weeks, with Italian or US holidays), and it predicts your next
   paychecks.
-- **Alerts**: possible double charges, unusual expenses, categories above average, new or more expensive
-  subscriptions.
+- **Alerts and reminders**: possible double charges, unusual expenses, categories above average, budgets at 80% or
+  over, new or more expensive subscriptions, and reminders of charges coming up in the next few days.
+- **Email (optional)**: a monthly summary on the 1st and reminders of upcoming charges, sent through your own email
+  account (Gmail, iCloud, Yahoo or any SMTP server).
 - **Goals**: savings goals with deadlines, from manual deposits, an account balance or your savings since a date.
 - **Investments**: securities by ISIN with live prices (Yahoo Finance), gains and losses, dividends and
   taxes read from your statements, plus read-only balances from crypto exchanges.
@@ -40,6 +48,9 @@ no servers: all your data stays in a local database on your own machine.
   1099 forms. It's an estimate, not tax advice.
 - **Multiple users**: each person gets separate data and a password. A demo account with made-up data is also available.
 - **Themes and languages**: light, dark, automatic and "Liquid Glass" themes. The interface is in English or Italian.
+- **Phone friendly**: the layout adapts to small screens, so you can use it from your phone (for example with the
+  app running on a NAS at home).
+- **Update notice**: the app tells you when a new version is published here (you can turn it off).
 
 ## Screenshots
 
@@ -55,6 +66,10 @@ no servers: all your data stays in a local database on your own machine.
 | **Alerts** | **Goals** |
 | ![Investments](docs/media/08-investments.png) | ![Cards](docs/media/09-cards.png) |
 | **Investments** | **Cards** |
+| ![Budgets](docs/media/14-budgets.png) | ![Shared expenses](docs/media/15-shared-expenses.png) |
+| **Budgets** | **Shared expenses** |
+| ![Split a transaction](docs/media/16-split-transaction.png) | ![On the phone](docs/media/17-phone.png) |
+| **Split a transaction** | **On the phone** |
 | ![Light theme](docs/media/10-overview-light.png) | ![Liquid Glass theme](docs/media/11-overview-liquid-glass.png) |
 | **Light theme** | **Liquid Glass theme** |
 | ![First run](docs/media/00-first-run.png) | ![Sign in](docs/media/12-sign-in.png) |
@@ -90,13 +105,24 @@ To update the packages, run `avvia_app.bat aggiorna` or `./avvia_app.sh aggiorna
 - The app goes online only for:
   - exchange rates (ECB via Frankfurter, Yahoo Finance);
   - security prices (Yahoo Finance);
-  - your bank and crypto exchanges, and only if you connect them yourself.
+  - your bank and crypto exchanges, and only if you connect them yourself;
+  - your email server, only if you turn on emails;
+  - once a day, GitHub's public API to check for a new version (no app data is sent; it can be turned off in
+    Settings → General).
 
   No analytics are sent, and Streamlit's usage statistics are turned off.
 - **Forgot the administrator password?** Close the app, delete `amministratore.json` from the data folder and
   open the app again. It will ask you to create the account again, and all your data stays. This also means that
   anyone who can open the files on your computer can get into the app, so protect your computer with its own
   password.
+
+## Online demo
+
+The app has a demo mode for trying it in the browser. With the setting `MONEYBOARD_DEMO = "1"` it doesn't ask for
+a sign-in: every visitor gets their own sandbox with made-up data, which is deleted after a few hours. Bank
+connections, folders, backups and emails are turned off. To publish it for free on
+[Streamlit Community Cloud](https://streamlit.io/cloud), create an app from this repository (main file `app.py`)
+and add `MONEYBOARD_DEMO = "1"` to its **Secrets**. Never use demo mode with your real data.
 
 ## Built with
 

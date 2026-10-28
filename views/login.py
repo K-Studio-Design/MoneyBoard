@@ -26,7 +26,26 @@ _MARK = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="56
 
 def is_authenticated() -> bool:
     """Accesso già fatto in questa sessione, oppure cookie «resta connesso» valido (se non si è appena usciti).
-    Imposta anche l'utente della sessione (st.session_state[db.USER_KEY]), che decide quale database si usa."""
+    Imposta anche l'utente della sessione (st.session_state[db.USER_KEY]), che decide quale database si usa.
+    Nella demo online non si chiede nessun accesso: ogni visitatore riceve un account di prova tutto suo."""
+    from core import demo_mode
+    if demo_mode.enabled():
+        if st.session_state.get(AUTH_KEY) and auth.exists(st.session_state.get(db.USER_KEY)):
+            return True
+        st.session_state.pop(LOGGED_OUT_KEY, None)
+        try:
+            token = st.context.cookies.get(auth.COOKIE_NAME)
+        except Exception:
+            token = None
+        back = auth.token_user(token) if token else None
+        if back and users.is_demo(back):        # stesso browser: si riprende il proprio account di prova
+            _start_session(back)
+            return True
+        uid = demo_mode.new_visitor()
+        _start_session(uid)
+        db.init_db()            # database del nuovo visitatore (i dati di prova li crea app.py)
+        st.session_state[SET_COOKIE_KEY] = auth.make_token(uid, days=1)
+        return True
     if st.session_state.get(AUTH_KEY):
         user = st.session_state.get(db.USER_KEY)
         if auth.exists(user) and st.session_state.get(VERSION_KEY) == auth.version(user):

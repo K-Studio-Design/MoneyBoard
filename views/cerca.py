@@ -38,6 +38,14 @@ APP_INDEX = [
      "tabella pivot scarica csv excel table download", "Mesi × categorie", None),
     ("a_valuta", "analisi", "Spese per valuta", "Analisi → Per valuta",
      "dollari valute estere currencies foreign", "Per valuta", None),
+    ("p_budget", "budget", "Budget", "Quanto vuoi spendere al mese per categoria",
+     "budget tetto limite spesa mensile categoria avviso superato monthly budget limit spending category",
+     None, None),
+    ("p_condivise", "condivise", "Spese condivise", "Chi ti deve dei soldi e a chi li devi tu",
+     "condivise dividere amici coinquilini partner rimborso debito credito splitwise shared expenses split friends "
+     "owe iou roommates", None, None),
+    ("m_dividi", "spese", "Dividere un movimento", "Movimenti → apri un movimento → Dividi il movimento",
+     "dividi suddividi movimento più categorie split transaction categories", None, None),
     ("p_calendario", "calendario", "Calendario", "Spese giorno per giorno e pagamenti in arrivo",
      "giorni mese scadenze agenda calendar days due", None, None),
     ("p_abbonamenti", "abbonamenti", "Abbonamenti", "Pagamenti e accrediti che si ripetono",
@@ -110,6 +118,11 @@ APP_INDEX = [
      "estratti da importare cartella automatico watch folder auto import", "Cartelle e backup", None),
     ("s_reset", "impostazioni", "Elimina tutti i movimenti", "Impostazioni → Cartelle e backup → Zona pericolosa",
      "cancella elimina tutto reset azzera delete all", "Cartelle e backup", None),
+    ("s_email", "impostazioni", "Email e promemoria", "Impostazioni → Email e promemoria",
+     "email posta smtp gmail riepilogo mensile promemoria scadenze notifiche bollette mail monthly summary "
+     "reminders notifications due bills", "Email e promemoria", None),
+    ("s_update", "impostazioni", "Avviso di nuova versione", "Impostazioni → Generali",
+     "aggiornamento nuova versione github release update new version", "Generali", None),
     ("p_utenti", "utenti", "Utenti", "Crea e gestisci gli utenti (amministratore)",
      "utente nuovo password account amministratore users admin", None, None),
 ]

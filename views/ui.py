@@ -301,21 +301,26 @@ def recurring_series(include_hidden: bool = False):
 
 @st.cache_data(show_spinner=False, max_entries=8)
 def _alerts_cached(signature: str, accounts: tuple[str, ...], today: date, hidden_series: tuple[str, ...],
-                   names_sig: str, rules_json: str = "{}", lang: str = "it"):
-    from core import alerts
-    df = db.transactions_df()
-    if accounts and not df.empty:
-        df = df[df["account"].isin(accounts)]
+                   names_sig: str, rules_json: str = "{}", lang: str = "it", budgets_sig: str = "",
+                   reminder_days: int = 0):
+    from core import alerts, budgets, report
+    full = db.transactions_df()
+    df = full[full["account"].isin(accounts)] if accounts and not full.empty else full
     series = [s for s in _series_cached(signature, accounts, today, rules_json) if s.sid not in set(hidden_series)]
-    return alerts.compute(df, series, today=today)
+    out = alerts.compute(df, series, today=today, reminder_days=reminder_days)
+    # i budget contano tutti i conti, qualunque sia la scelta nella barra laterale
+    out += budgets.alerts(report.frame(full), today=today)
+    out.sort(key=lambda a: (alerts.LEVEL_ORDER[a.level], -a.date.value))
+    return out
 
 
 def active_alerts(include_dismissed: bool = False):
     """Avvisi per i conti selezionati nella barra laterale (esclusi quelli ignorati)."""
-    from core import alerts, recurring
+    from core import alerts, budgets, notify, recurring
     out = _alerts_cached(db.data_signature(), tuple(sorted(selected_accounts())), date.today(),
                          tuple(sorted(recurring.hidden() | recurring.deleted())),
-                         db.get_setting(recurring.NAMES_KEY, "") or "", _rules_json(), i18n.lang())
+                         db.get_setting(recurring.NAMES_KEY, "") or "", _rules_json(), i18n.lang(),
+                         budgets.signature(), notify.reminder_days())
     out = [a for a in out if a.aid not in alerts.deleted()]
     if include_dismissed:
         return out
@@ -328,5 +333,5 @@ def _rules_json() -> str:
 
     from core import recurring
     rules = recurring.day_rules()
-    rules["__stipendio__"] = recurring.salary_rule()
+    rules.update(recurring.salary_rules())
     return json.dumps(rules, sort_keys=True)

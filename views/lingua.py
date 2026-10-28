@@ -23,7 +23,9 @@ def init(authed: bool) -> None:
     """Da chiamare a ogni esecuzione, subito dopo il controllo dell'accesso: decide la lingua della sessione.
     Dopo l'accesso vale quella salvata nel profilo dell'utente (se non l'ha mai scelta, quella usata nella
     schermata di accesso, che viene salvata); prima dell'accesso quella scelta lì (ricordata in un cookie)."""
+    from core import demo_mode
     current = st.session_state.get(i18n.LANG_KEY)
+    default = "en" if demo_mode.enabled() else i18n.DEFAULT    # la demo online parte in inglese
     if authed:
         saved = db.get_setting(i18n.SETTING_KEY, "") or ""
         chosen = st.session_state.pop(_CHOSEN_AT_LOGIN, None)
@@ -33,10 +35,10 @@ def init(authed: bool) -> None:
         elif saved in i18n.LANGS:
             code = saved
         else:
-            code = current if current in i18n.LANGS else (_cookie_lang() or i18n.DEFAULT)
+            code = current if current in i18n.LANGS else (_cookie_lang() or default)
             db.set_setting(i18n.SETTING_KEY, code)
     else:
-        code = current if current in i18n.LANGS else (_cookie_lang() or i18n.DEFAULT)
+        code = current if current in i18n.LANGS else (_cookie_lang() or default)
     st.session_state[i18n.LANG_KEY] = code
     if authed and not st.session_state.get(_SYNCED):
         # il browser ricorda la lingua dell'ultimo utente: la schermata di accesso si apre già in quella lingua

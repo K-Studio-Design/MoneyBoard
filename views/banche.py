@@ -181,6 +181,11 @@ def _auto_sync_box() -> None:
 
 def render():
     style.header(t("Collega banche"), t("Sincronizzazione automatica dei movimenti tramite Open Banking"))
+    from core import demo_mode
+    if demo_mode.enabled():
+        st.info(t("Nella demo online il collegamento con le banche è spento: scarica l'app per collegare i tuoi "
+                  "conti. Puoi comunque provare l'import di un estratto da «Importa estratti»."), icon=":material/block:")
+        return
     _settings()
     if not eb.is_configured():
         st.info(t("Completa la configurazione qui sopra per collegare Fineco e Revolut. "

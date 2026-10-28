@@ -351,8 +351,38 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
 @media (max-width: 1100px) {{ .as-grads {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
 @media (max-width: 760px) {{ .as-cal .d {{ min-height: 58px; }} .as-cal .d .x, .as-cal .d .i {{ display: none; }} }}
 @media (max-width: 640px) {{
-  .as-grads, .as-kpis {{ grid-template-columns: 1fr !important; }}
+  /* riquadri colorati e numeri: due per riga, più compatti */
+  .as-grads {{ grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: .65rem; }}
+  .as-kpis {{ grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: .6rem; }}
+  .as-grad {{ padding: .8rem .85rem .8rem; border-radius: 16px; }}
+  .as-grad .l {{ font-size: .82rem; }} .as-grad .s {{ font-size: .68rem; }}
+  .as-grad .v {{ font-size: 1.22rem; margin-top: .35rem; }}
+  .as-grad .p {{ gap: .4rem; font-size: .68rem; margin-top: .4rem; }}
+  .as-kpi {{ padding: .75rem .8rem !important; }} .as-kpi .v {{ font-size: 1.15rem !important; }}
+  .as-kpi .l, .as-kpi .d {{ font-size: .72rem !important; }}
   .as-row {{ grid-template-columns: 2.4rem minmax(0, 1fr) auto; }} .as-row .pill {{ display: none; }}
+  /* barra in alto: titolo, poi ricerca e avatar sulla stessa riga (la data è nel calendario) */
+  .st-key-as_topbar {{ flex-wrap: wrap !important; row-gap: .7rem !important; margin-bottom: 1rem !important; }}
+  .st-key-as_topbar > div:first-child {{ flex: 1 1 100% !important; width: 100% !important; }}
+  .st-key-as_topbar .st-key-as_search_box {{ flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; }}
+  .st-key-as_topbar .st-key-as_search_box [data-testid="stTextInput"] {{ width: 100% !important; }}
+  .st-key-as_topbar .st-key-as_date_box, .st-key-as_topbar .as-date {{ display: none !important; }}
+  .st-key-as_topbar .st-key-as_me {{ flex: 0 0 auto !important; width: auto !important; }}
+  .as-top h1 {{ font-size: 1.5rem !important; }} .as-top p {{ font-size: .82rem; }}
+  /* calendario */
+  .as-cal {{ gap: 3px; }} .as-cal .h {{ font-size: .66rem; }}
+  .as-cal .d {{ min-height: 48px; padding: .22rem .25rem; border-radius: 8px; }}
+  .as-cal .d .n {{ font-size: .7rem; }} .as-cal .d .a {{ font-size: .58rem; overflow: hidden; text-overflow: clip; }}
+  [data-testid="stHorizontalBlock"]:has(.st-key-cal_prev) {{ flex-wrap: nowrap !important; gap: .4rem !important; }}
+  [data-testid="stHorizontalBlock"]:has(.st-key-cal_prev) > [data-testid="stColumn"] {{
+    width: auto !important; min-width: 0 !important; flex: 0 0 auto !important; }}
+  [data-testid="stHorizontalBlock"]:has(.st-key-cal_prev) > [data-testid="stColumn"]:nth-child(3) {{ flex: 1 1 0 !important; }}
+  [data-testid="stHorizontalBlock"]:has(.st-key-cal_prev) h3 {{ font-size: 1.15rem !important; }}
+  /* avvisi: testo sopra, «Apri» e «Ignora» affiancati sotto */
+  [data-testid="stHorizontalBlock"]:has(.as-alert) {{ flex-wrap: wrap !important; gap: .5rem !important; }}
+  [data-testid="stHorizontalBlock"]:has(.as-alert) > [data-testid="stColumn"] {{
+    flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; }}
+  [data-testid="stHorizontalBlock"]:has(.as-alert) > [data-testid="stColumn"]:first-child {{ flex: 1 1 100% !important; }}
 }}
 @media (prefers-reduced-motion: reduce) {{ .as-click .as-row, .as-pick > div {{ transition: none; }} }}
 </style>"""
@@ -1020,6 +1050,15 @@ def _initials(text: str) -> str:
     return "".join(w[0].upper() for w in words[:2]) or "•"
 
 
+def _is_split(r) -> bool:
+    """Parte di un movimento diviso, o movimento diviso in parti."""
+    for c in ("split_of", "split_total"):
+        v = r.get(c)
+        if v is not None and not (isinstance(v, float) and pd.isna(v)):
+            return True
+    return False
+
+
 def tx_list(df: pd.DataFrame, fmt_amount, colors: dict[str, str], base: str, key: str,
             clickable: bool = True) -> int | None:
     """Elenco movimenti: iniziali, descrizione, data e conto, categoria, importo (e controvalore se in valuta).
@@ -1040,7 +1079,7 @@ def tx_list(df: pd.DataFrame, fmt_amount, colors: dict[str, str], base: str, key
             "id": int(r["id"]),
             "ini": _initials(r["description"]),
             "desc": str(r["description"] or ""),
-            "meta": f"{dt}, {r['account']}",
+            "meta": f"{dt}, {r['account']}" + (t(", diviso") if _is_split(r) else ""),
             "cat": str(labels.get(r["category"], r["category"]) or "") if isinstance(r["category"], str) else "",
             "color": color,
             "soft": rgba(color, 0.16),

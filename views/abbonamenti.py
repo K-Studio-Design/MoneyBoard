@@ -10,7 +10,7 @@ import streamlit as st
 
 from core import db, i18n, recurring
 from core.i18n import t
-from views import focus, style, ui
+from views import focus, nav, style, ui
 
 def short_date(d) -> str:
     d = pd.Timestamp(d)
@@ -37,7 +37,8 @@ def _rows(series: list[recurring.Series], colors: dict, names: dict, base: str, 
         if inactive:
             meta = t("{cad}, ultimo addebito il {d}, {acc}", cad=t(s.cadence), d=short_date(s.last), acc=s.account)
         else:
-            rule = {"ultimo_lav": t(", ultimo giorno lavorativo"), "primo_lav": t(", primo giorno lavorativo")}.get(s.day_rule, "")
+            rule = {"ultimo_lav": t(", ultimo giorno lavorativo"), "primo_lav": t(", primo giorno lavorativo"),
+                    "profilo": t(", date dal Profilo")}.get(s.day_rule, "")
             meta = t("{cad}{rule}, prossimo {d} ({when}), {acc}", cad=t(s.cadence), rule=rule, d=short_date(s.next_date),
                      when=days_to(s.next_date), acc=s.account)
         amt = ui.money(s.amount, s.currency)
@@ -318,12 +319,17 @@ def _series_body(sid: str) -> None:
             st.caption(t("Gli ultimi 12 di {n}.", n=len(rows)))
 
     st.subheader(t("Gestisci"))
-    if s.months:
+    if s.schedule:
+        st.caption(t("Le date di questo accredito sono quelle scelte nel Profilo («Lo stipendio arriva»: {r}).",
+                     r=t(recurring.SALARY_MODES[s.schedule["mode"]]).lower()))
+        if "profilo" in nav.PAGES:
+            st.page_link(nav.PAGES["profilo"], label=t("Cambiale nel Profilo"), icon=":material/person:")
+    elif s.months:
         manual = recurring.day_rules().get(sid)
         is_salary = s.kind == "entrata" and s.months == 1 and s.category == recurring.SALARY_CATEGORY
         opts = list(recurring.DAY_RULES)
         labels = {k: t(v) for k, v in recurring.DAY_RULES.items()}
-        labels["auto"] = (t("Come impostato nel Profilo ({r})", r=t(recurring.DAY_RULES[recurring.salary_rule()]).lower())
+        labels["auto"] = (t("Come impostato nel Profilo ({r})", r=t(recurring.SALARY_MODES[recurring.salary_rule()]).lower())
                           if is_salary else
                           t("Automatico: {r}", r=t(recurring.DAY_RULES[s.day_rule_detected]).lower())
                           + (t(" (il {d})", d=s.anchor_day) if s.day_rule_detected == "giorno" else ""))

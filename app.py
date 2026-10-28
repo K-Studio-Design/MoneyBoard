@@ -8,11 +8,11 @@ import streamlit as st
 
 st.set_page_config(page_title="MoneyBoard", page_icon=":material/account_balance_wallet:", layout="wide")
 
-from core import autoimport, autosync, db, demo, i18n, securities, storage, version  # noqa: E402
+from core import autoimport, autosync, db, demo, demo_mode, i18n, securities, storage, version  # noqa: E402
 from core.i18n import t  # noqa: E402
-from views import (abbonamenti, analisi, avvisi, banche, calendario, carte, cartelle, dashboard, focus, importa,  # noqa: E402
-                   impostazioni, investimenti, lingua, login, nav, obiettivi, profilo, spese, style, tasse, theme, ui,
-                   utenti, valute)
+from views import (abbonamenti, analisi, avvisi, banche, budget, calendario, carte, cartelle, condivise,  # noqa: E402
+                   dashboard, focus, importa, impostazioni, investimenti, lingua, login, nav, obiettivi, profilo, spese,
+                   style, tasse, theme, ui, utenti, valute)
 
 db.init_db()
 
@@ -80,6 +80,8 @@ nav.PAGES.update(
                       default=True),
     spese=st.Page(spese.render, title=t("Movimenti"), icon=":material/receipt_long:", url_path="movimenti"),
     analisi=st.Page(analisi.render, title=t("Analisi"), icon=":material/insights:", url_path="analisi"),
+    budget=st.Page(budget.render, title=t("Budget"), icon=":material/data_usage:", url_path="budget"),
+    condivise=st.Page(condivise.render, title=t("Spese condivise"), icon=":material/group:", url_path="condivise"),
     abbonamenti=st.Page(abbonamenti.render, title=t("Abbonamenti"), icon=":material/autorenew:", url_path="abbonamenti"),
     obiettivi=st.Page(obiettivi.render, title=t("Obiettivi"), icon=":material/savings:", url_path="obiettivi"),
     investimenti=st.Page(investimenti.render, title=t("Investimenti"), icon=":material/show_chart:",
@@ -87,7 +89,8 @@ nav.PAGES.update(
     valute=st.Page(valute.render, title=t("Valute e cambi"), icon=":material/currency_exchange:", url_path="valute"),
 )
 pages = {
-    t("Spese"): [nav.PAGES[k] for k in ("dashboard", "spese", "analisi", "calendario", "abbonamenti", "avvisi")],
+    t("Spese"): [nav.PAGES[k] for k in ("dashboard", "spese", "analisi", "budget", "calendario", "abbonamenti",
+                                         "condivise", "avvisi")],
     t("Patrimonio"): [nav.PAGES[k] for k in ("obiettivi", "investimenti", "valute")],
 }
 # funzione in prova (alpha), attivata dal Profilo: la pagina esiste solo se è accesa
@@ -155,7 +158,11 @@ with st.sidebar:
     if c2.button("", icon=":material/refresh:", help=t("Aggiorna le quotazioni di titoli e crypto")):
         update_prices()
     last = db.get_setting("prices_last_update")
-    if db.is_demo():
+    if demo_mode.enabled():
+        st.caption(":material/science: " + t("Demo online: i dati sono inventati e solo tuoi, e si cancellano dopo "
+                                             "qualche ora.") + " [" + t("Scarica MoneyBoard") + "]("
+                   + version.RELEASES_URL.rsplit("/releases", 1)[0] + ")")
+    elif db.is_demo():
         st.caption(":material/science: " + t("Account di prova: tutti i dati sono fittizi."))
     _when = ""
     if last:
@@ -190,8 +197,30 @@ def _bank_autosync() -> None:
     st.rerun()                  # ridisegna l'app con i dati aggiornati e mostra l'esito
 
 
+@st.fragment(run_every=timedelta(minutes=15))
+def _background() -> None:
+    """Dopo la pagina, ogni 15 minuti: email dovute (riepilogo mensile, promemoria) e controllo della nuova
+    versione (al massimo una volta al giorno). Niente di tutto questo nella demo online."""
+    if demo_mode.enabled():
+        return
+    from core import notify, updates
+    try:
+        for msg, is_err in notify.run_due():
+            st.toast(msg, icon=":material/error:" if is_err else ":material/mail:")
+    except Exception as e:  # le email non devono mai bloccare l'app
+        st.toast(t("Email non inviata: {err}", err=e), icon=":material/error:")
+    try:
+        new = updates.check()
+    except Exception:
+        new = None
+    if new:
+        st.markdown(":material/new_releases: **" + t("È uscita la versione {v}", v=new["latest"]) + "** · ["
+                    + t("Scaricala da GitHub") + "](" + new["url"] + ")")
+
+
 pg.run()
 focus.handle_pending()  # movimento cliccato dentro il dettaglio di una categoria
 with st.sidebar:
     _bank_autosync()
+    _background()
     st.caption(version.credit_markdown())  # versione dell'app e autore

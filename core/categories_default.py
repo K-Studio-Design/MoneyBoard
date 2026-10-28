@@ -40,6 +40,7 @@ DEFAULT_CATEGORIES = [
     ("Altre entrate", "entrata", "💰", "#8FD9C9"),
     ("Trasferimenti tra conti", "neutro", "↔️", "#C9C6D8"),
     ("Investimenti", "neutro", "📊", "#A3A0B5"),
+    ("Spese condivise", "neutro", "🤝", "#9C8CF0"),
 ]
 
 # nome inglese delle categorie predefinite (mostrato quando l'app è in inglese; modificabile in Impostazioni)
@@ -71,6 +72,7 @@ CATEGORIES_EN = {
     "Contanti e prelievi": "Cash and withdrawals",
     "Altre spese": "Other expenses",
     "Stipendio": "Salary",
+    "Spese condivise": "Shared expenses",
     "Rimborsi": "Refunds",
     "Interessi e dividendi": "Interest and dividends",
     "Altre entrate": "Other income",

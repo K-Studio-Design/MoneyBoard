@@ -147,6 +147,129 @@ def _body(tx_id: int) -> None:
             db.add_rule(rule_keyword(r["description"], key), new_cat, priority=10)
         st.rerun()
 
+    with st.expander(t("Dividi il movimento"), icon=":material/call_split:", expanded=bool(db.split_family(tx_id))):
+        _split_section(r, tx_id)
+    with st.expander(t("Spese condivise"), icon=":material/group:"):
+        _shared_section(r, tx_id)
+
+
+# ---------------------------------------------------------------- dividere e condividere
+def _split_section(r, tx_id: int) -> None:
+    """Dividere il movimento in più categorie, oppure riunire le parti di un movimento già diviso."""
+    fam = db.split_family(tx_id)
+    if fam:
+        df = db.transactions_df()
+        parts = df[df["id"].isin(fam)].set_index("id").loc[fam]
+        total = parts["amount"].sum()
+        st.caption(t("Questo movimento è diviso in {n} parti (totale {v}):", n=len(fam),
+                     v=ui.money(total, r["currency"])))
+        lines = "".join(f'<div class="{"cur" if int(i) == tx_id else ""}"><span>{style.e(ui.cat(p["category"]))}'
+                        f'{style.e(" · " + str(p["notes"])) if p["notes"] else ""}</span>'
+                        f'<span>{style.e(ui.money(p["amount"], p["currency"]))}</span></div>'
+                        for i, p in parts.iterrows())
+        st.html(f'<div class="as-mini">{lines}</div>')
+        if st.button(t("Riunisci le parti"), key=f"fx_unsplit_{tx_id}", icon=":material/call_merge:",
+                     help=t("Annulla la divisione: le parti tornano un solo movimento (e le quote delle spese "
+                            "condivise legate spariscono).")):
+            db.unsplit(tx_id)
+            st.toast(t("Parti riunite"), icon=":material/call_merge:")
+            st.rerun()
+        return
+    total = round(abs(float(r["amount"])), 2)
+    if total < 0.02:
+        return
+    st.caption(t("Per esempio un acquisto online con cose di categorie diverse: ogni parte conta nella sua "
+                 "categoria, il totale resta quello della banca."))
+    names = db.category_names()
+    labels = {n: ui.cat(n) for n in names}
+    to_key = {v: k for k, v in labels.items()}
+    src = pd.DataFrame({"categoria": [labels.get(r["category"], r["category"]), None],
+                        "importo": [total, None], "nota": ["", ""]})
+    ed = st.data_editor(
+        src, hide_index=True, num_rows="dynamic", width="stretch", key=f"fx_split_{tx_id}",
+        column_config={
+            "categoria": st.column_config.SelectboxColumn(t("Categoria"), options=list(labels.values()), width="medium"),
+            "importo": st.column_config.NumberColumn(t("Importo ({ccy})", ccy=r["currency"]), min_value=0.0,
+                                                     step=1.0, format="%.2f"),
+            "nota": st.column_config.TextColumn(t("Nota")),
+        })
+    rows = ed.dropna(subset=["categoria", "importo"])
+    rows = rows[rows["importo"] > 0]
+    used = round(float(rows["importo"].sum()), 2)
+    rest = round(total - used, 2)
+    if abs(rest) >= 0.005:
+        st.caption(t("Da assegnare: {v}", v=ui.money(rest if float(r["amount"]) >= 0 else -rest, r["currency"]))
+                   if rest > 0 else t("Le parti superano il totale di {v}.", v=ui.money(-rest, r["currency"])))
+    ok = len(rows) >= 2 and abs(rest) < 0.005
+    if st.button(t("Dividi"), key=f"fx_split_go_{tx_id}", type="primary", icon=":material/call_split:", disabled=not ok):
+        try:
+            db.split_transaction(tx_id, [(to_key.get(x["categoria"], x["categoria"]), float(x["importo"]),
+                                          str(x["nota"] or "")) for _, x in rows.iterrows()])
+            st.toast(t("Movimento diviso in {n} parti", n=len(rows)), icon=":material/call_split:")
+            st.rerun()
+        except db.SplitError as e:
+            st.error(str(e))
+
+
+def _person_picker(key: str):
+    """Persona esistente o nuova: ritorna (id o None, nome nuovo)."""
+    from core import shared
+    pe = shared.people()
+    opts = [str(i) for i in pe["id"]] + ["__new__"]
+    names = dict(zip([str(i) for i in pe["id"]], pe["name"]))
+    who = st.selectbox(t("Persona"), opts, format_func=lambda k: names.get(k, t("Nuova persona…")), key=f"{key}_who")
+    if who == "__new__":
+        return None, st.text_input(t("Nome della persona"), key=f"{key}_new", placeholder=t("es. Marco"))
+    return int(who), ""
+
+
+def _shared_section(r, tx_id: int) -> None:
+    """Spese condivise: la quota di un'altra persona su una spesa che hai pagato tu, oppure un rimborso."""
+    from core import shared
+    from views import condivise
+    lk = shared.linked(tx_id)
+    if not lk.empty:
+        for _, e in lk.iterrows():
+            c1, c2 = st.columns([4, 1.3], vertical_alignment="center")
+            c1.markdown(f"**{ui.esc(e['person'])}**: {ui.esc(condivise.balance_text(float(e['amount']), e['currency']))}"
+                        f"  \n:gray[{ui.esc(t(condivise.KIND_LABELS.get(e['kind'], e['kind'])))}]")
+            if c2.button(t("Scollega"), key=f"fx_unlink_{int(e['id'])}", width="stretch",
+                         help=t("Toglie la voce dalle spese condivise (una quota torna nella spesa).")):
+                shared.delete_entry(int(e["id"]))
+                st.rerun()
+    amount = float(r["amount"])
+    if amount < 0 and abs(amount) >= 0.02:
+        st.markdown("**" + t("Dividi con altre persone") + "**")
+        st.caption(t("Hai pagato tu anche per qualcun altro: la sua parte non conta nelle tue spese e risulta come "
+                     "soldi che ti deve."))
+        pid, new = _person_picker(f"fx_share_{tx_id}")
+        share = st.number_input(t("La sua parte ({ccy})", ccy=r["currency"]), min_value=0.0,
+                                max_value=round(abs(amount) - 0.01, 2), value=round(abs(amount) / 2, 2), step=1.0,
+                                format="%.2f", key=f"fx_share_amt_{tx_id}")
+        if st.button(t("Aggiungi la sua quota"), key=f"fx_share_go_{tx_id}", icon=":material/group_add:"):
+            try:
+                pid = pid if pid is not None else shared.add_person(new)
+                shared.share_transaction(tx_id, pid, share)
+                st.toast(t("Quota aggiunta alle spese condivise"), icon=":material/group:")
+                st.rerun()
+            except (shared.SharedError, db.SplitError) as e:
+                st.error(str(e))
+    if lk.empty or int(tx_id) not in set(lk["tx_id"].dropna().astype(int)):
+        st.markdown("**" + (t("È un rimborso da una persona") if amount > 0 else t("È un rimborso a una persona")) + "**")
+        st.caption(t("Soldi che ti ha restituito (o che hai dato tu) per spese fatte insieme: aggiornano il saldo "
+                     "con quella persona."))
+        pid2, new2 = _person_picker(f"fx_settle_{tx_id}")
+        neutral = st.checkbox(t("Non contarlo tra entrate e spese (diventa «Spese condivise»)"), value=True,
+                              key=f"fx_settle_neu_{tx_id}")
+        if st.button(t("Collega come rimborso"), key=f"fx_settle_go_{tx_id}", icon=":material/handshake:"):
+            try:
+                pid2 = pid2 if pid2 is not None else shared.add_person(new2)
+                shared.settle_with_transaction(tx_id, pid2, neutral=neutral)
+                st.toast(t("Rimborso collegato"), icon=":material/handshake:")
+                st.rerun()
+            except shared.SharedError as e:
+                st.error(str(e))
+
 
 # ---------------------------------------------------------------- dettaglio categoria
 PENDING = "focus_pending_tx"

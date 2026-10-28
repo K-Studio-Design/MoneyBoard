@@ -72,6 +72,10 @@ def render_tab() -> None:
             n = demo.seed()
             st.cache_data.clear()
             st.success(t("Dati di prova ricreati: {n} movimenti.", n=n))
+    from core import demo_mode
+    if demo_mode.enabled():
+        st.caption(t("Nella demo online cartelle e backup non si possono cambiare: scarica l'app per usarli."))
+        return
     if db.is_admin() and os.environ.get("APP_SPESE_DATA"):
         st.info(t("La cartella è fissata dalla variabile d'ambiente APP_SPESE_DATA: per cambiarla da qui, toglila."))
     else:

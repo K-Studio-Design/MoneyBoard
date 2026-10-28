@@ -10,8 +10,9 @@ KINDS = ["uscita", "entrata", "neutro"]
 
 def render():
     style.header(t("Impostazioni"))
-    tab1, tab2, tab3, tab4 = st.tabs([t("Generali"), t("Categorie"), t("Regole automatiche"), t("Cartelle e backup")],
-                                     default=cerca.tab_default("impostazioni"))
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([t("Generali"), t("Categorie"), t("Regole automatiche"),
+                                            t("Cartelle e backup"), t("Email e promemoria")],
+                                           default=cerca.tab_default("impostazioni"))
 
     with tab1:
         lingua.selector("set_lang")
@@ -29,6 +30,14 @@ def render():
         auto = st.toggle(t("Aggiorna le quotazioni dei titoli all'apertura dell'app"),
                          value=db.get_setting("auto_update_prices") == "1")
         db.set_setting("auto_update_prices", "1" if auto else "0")
+        from core import demo_mode, updates
+        if not demo_mode.enabled():
+            upd = st.toggle(t("Avvisami quando esce una nuova versione"), value=updates.enabled(), key="set_upd",
+                            help=t("Una volta al giorno chiede a GitHub qual è l'ultima versione pubblicata. Non "
+                                   "manda nessun dato dell'app."))
+            if upd != updates.enabled():
+                db.set_setting(updates.ENABLED_KEY, "1" if upd else "0")
+                st.session_state.pop("_update_notice", None)
         if st.button(t("Ricalcola cambi mancanti")):
             with st.spinner(t("Ricalcolo…")):
                 ok, fail = fx.recompute_missing_or_all(all_rows=False)
@@ -132,6 +141,10 @@ def render():
             st.rerun()
         if b2.button("🔁 " + t("Riapplica regole ai movimenti (non modificati a mano)")):
             st.success(t("Movimenti ricategorizzati: {n}", n=recategorize_all()))
+
+    with tab5:
+        from views import notifiche
+        notifiche.render_tab()
 
     with tab4:
         from views import cartelle

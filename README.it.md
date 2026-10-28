@@ -5,7 +5,7 @@
 App per gestire spese, entrate, abbonamenti, obiettivi di risparmio e investimenti, con i dati salvati **solo sul
 tuo computer** (nessun server, nessun account online). Interfaccia in italiano e in inglese.
 
-Fatta da **K Studio Design** in Italia · versione 1.1.0 · licenza
+Fatta da **K Studio Design** in Italia · versione 1.2.0 · licenza
 [PolyForm Noncommercial 1.0.0](LICENSE.md): gratuita per uso personale e non commerciale (vedi sotto).
 
 ## Avvio rapido
@@ -50,8 +50,10 @@ può accedere anche all'app: proteggi il computer con la sua password.
 - Tutti i dati (database SQLite, estratti, backup, chiavi delle banche) stanno nella cartella dati sul tuo
   computer, di default `AppSpese_dati` nella tua cartella utente, fuori dalla cartella dell'app.
 - L'app si collega a internet solo per: cambi valuta (BCE/Frankfurter, Yahoo Finance), quotazioni dei titoli
-  (Yahoo Finance), e, solo se li configuri tu, le banche (Enable Banking) e gli exchange crypto (API in sola
-  lettura). Nessuna statistica d'uso viene inviata (anche quella di Streamlit è disattivata).
+  (Yahoo Finance), e, solo se li configuri tu, le banche (Enable Banking), gli exchange crypto (API in sola
+  lettura) e il tuo server di posta (per le email). Una volta al giorno chiede a GitHub se c'è una versione nuova
+  (senza mandare nessun dato; si spegne in Impostazioni → Generali). Nessuna statistica d'uso viene inviata (anche
+  quella di Streamlit è disattivata).
 - La funzione **Tasse USA** (Profilo → Funzioni in prova) è in **alpha**: è una stima, non una consulenza
   fiscale. Verifica sempre con un professionista.
 
@@ -124,7 +126,11 @@ Tutto si configura in *Impostazioni → Cartelle e backup* (menu dell'avatar in 
 | 📊 Analisi | Periodi preimpostati o personalizzati; totali, medie (mensile/giornaliera/per movimento), tasso di risparmio, confronto col periodo precedente, grafici per mese e categoria, andamento, top esercenti, tabella mesi × categorie |
 | 📅 Calendario | Il mese come calendario: ogni giorno colorato in base a quanto hai speso, entrate in verde, addebiti previsti (abbonamenti, stipendio) nei giorni futuri. Clic su un giorno per i movimenti; giorni senza spese, giorno più costoso, spesa media per giorno della settimana |
 | 🔁 Abbonamenti | Pagamenti ricorrenti trovati in automatico (le date previste tengono conto di regole come «ultimo giorno lavorativo del mese», con weekend e festività italiane; per lo stipendio si sceglie nel Profilo: ultimo o primo giorno lavorativo, uno o più giorni del mese a scelta, ogni settimana o ogni 2 settimane, con festività italiane o americane) (Netflix, Spotify, rate, canoni, bollette…): costo al mese e all'anno, prossimo addebito, cambi di prezzo, quelli non più addebitati; entrate ricorrenti (stipendio). Si possono rinominare o nascondere |
-| 🔔 Avvisi | Possibili addebiti doppi, spese molto più alte del solito presso lo stesso negozio, le spese più alte dell'anno, categorie già sopra la media del mese, abbonamenti nuovi, aumentati o non più addebitati. Il numero compare nel menu; «Ignora» li toglie |
+| 🔔 Avvisi | Possibili addebiti doppi, spese molto più alte del solito presso lo stesso negozio, le spese più alte dell'anno, categorie già sopra la media del mese, budget all'80% o superati, abbonamenti nuovi, aumentati o non più addebitati, promemoria degli addebiti in arrivo. Il numero compare nel menu; «Ignora» li toglie |
+| 🎯 Budget | Un tetto di spesa al mese per categoria (e, volendo, per il totale): barre di avanzamento, quanto puoi ancora spendere al giorno, avvisi all'80% e quando lo superi. Si può partire dalla media degli ultimi 3 mesi |
+| ✂️ Dividere un movimento | Dal dettaglio di un movimento: un pagamento diviso in più categorie (es. un ordine online con un regalo e una cosa per la casa). Il totale resta quello della banca |
+| 🤝 Spese condivise | Chi ti deve dei soldi e a chi li devi tu: la quota di una spesa pagata anche per altri, i rimborsi ricevuti o dati, il saldo per persona. Nelle tue spese resta solo la tua parte |
+| ✉️ Email (facoltative) | Riepilogo del mese il giorno 1 e promemoria degli addebiti in arrivo, con il tuo account di posta (Gmail, iCloud, Yahoo o un altro server SMTP): Impostazioni → Email e promemoria |
 | 🎯 Obiettivi | Obiettivi di risparmio con scadenza: versamenti a mano, saldo di un conto (es. il conto deposito) oppure risparmio (entrate meno spese) da una data. Avanzamento, quanto serve al mese, previsione al ritmo attuale, confronto con il tuo risparmio medio |
 | 📥 Importa (menu dell'avatar) | Estratti **Fineco** (Excel), **Revolut** (estratto *consolidato* Excel con tutti i conti/valute, oppure CSV), **Chase** (CSV del conto o della carta, oppure QFX/OFX: riconosce da solo il tipo, i pagamenti della carta, gli Zelle verso te stesso e i resi), o qualunque CSV/Excel con mappatura colonne. Duplicati ignorati, categorie automatiche |
 | 🏦 Collega banche (menu dell'avatar) | Sincronizzazione automatica via Open Banking (Enable Banking) per Fineco, Revolut e altre banche UE |
@@ -153,6 +159,14 @@ Vedi la guida nella pagina *🏦 Collega banche* (menu dell'avatar in alto a des
 crei un'applicazione *Production* (modalità restricted per uso personale) → scarichi il `.pem` →
 fai *Link accounts* dei tuoi conti nel Control Panel → inserisci Application ID e `.pem` nell'app.
 Il consenso PSD2 scade in genere dopo 90–180 giorni e va rinnovato.
+
+## Demo online
+
+Con l'impostazione `MONEYBOARD_DEMO = "1"` l'app non chiede l'accesso: ogni visitatore riceve un account di prova
+tutto suo, con dati inventati che si cancellano dopo qualche ora; banche, cartelle, backup ed email sono spenti.
+Per pubblicarla gratis su [Streamlit Community Cloud](https://streamlit.io/cloud) crea un'app da questo
+repository (file principale `app.py`) e aggiungi `MONEYBOARD_DEMO = "1"` nei suoi **Secrets**. Non usare mai la
+modalità demo con i tuoi dati veri.
 
 ## Licenza
 

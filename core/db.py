@@ -250,6 +250,30 @@ CREATE TABLE IF NOT EXISTS goals (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+-- budget mensile per categoria (in valuta base)
+CREATE TABLE IF NOT EXISTS budgets (
+    category TEXT PRIMARY KEY REFERENCES categories(name) ON UPDATE CASCADE ON DELETE CASCADE,
+    amount REAL NOT NULL
+);
+
+-- spese condivise: persone e quanto ti devono (importo positivo) o devi tu (negativo)
+CREATE TABLE IF NOT EXISTS people (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    archived INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS shared (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    amount REAL NOT NULL,          -- > 0: questa persona ti deve; < 0: tu devi a lei
+    currency TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'manuale',   -- quota | rimborso | manuale | saldo
+    tx_id INTEGER,                 -- movimento collegato (quota divisa o rimborso), se c'è
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS goal_moves (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     goal_id INTEGER NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
@@ -258,6 +282,8 @@ CREATE TABLE IF NOT EXISTS goal_moves (
     note TEXT DEFAULT ''
 );
 """
+
+SHARED_CATEGORY = "Spese condivise"   # neutra: la parte di una spesa che ti verrà restituita
 
 DEFAULT_SETTINGS = {
     "base_currency": "EUR",
@@ -269,7 +295,8 @@ DEFAULT_SETTINGS = {
 
 
 _EXTRA_COLUMNS = {
-    "transactions": {"card": "TEXT", "bank_uid": "TEXT"},
+    # split_of: movimento diviso da cui proviene questa parte; split_total: importo originale del movimento diviso
+    "transactions": {"card": "TEXT", "bank_uid": "TEXT", "split_of": "INTEGER", "split_total": "REAL"},
     "categories": {"name_en": "TEXT"},       # nome mostrato quando l'app è in inglese (vuoto = come il nome)
     "bank_accounts": {"cash_account_type": "TEXT", "product": "TEXT", "balance": "REAL", "balance_currency": "TEXT",
                       "balance_type": "TEXT", "balance_date": "TEXT", "balances_json": "TEXT"},
@@ -290,6 +317,7 @@ def init_db() -> None:
         con.executescript(SCHEMA)
         _migrate_columns(con)
         con.execute("CREATE INDEX IF NOT EXISTS ix_tx_match ON transactions(account, currency, date)")
+        con.execute("CREATE INDEX IF NOT EXISTS ix_tx_split ON transactions(split_of)")
         for k, v in DEFAULT_SETTINGS.items():
             con.execute("INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)", (k, v))
         n = con.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
@@ -334,6 +362,15 @@ def init_db() -> None:
             for (kw, cat), prio in RULE_PRIORITY.items():
                 con.execute("UPDATE rules SET priority=? WHERE keyword=? AND category=?", (prio, kw, cat))
             con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('rules_version', ?)", (str(RULES_VERSION),))
+        if not con.execute("SELECT 1 FROM settings WHERE key='shared_category'").fetchone():
+            clash = con.execute("SELECT 1 FROM categories WHERE lower(name)=lower(?) OR lower(COALESCE(name_en,''))="
+                                "lower(?)", (SHARED_CATEGORY, "Shared expenses")).fetchone()
+            if not clash:
+                top = con.execute("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM categories").fetchone()[0]
+                con.execute("INSERT INTO categories(name, kind, icon, color, sort_order, name_en) VALUES (?,?,?,?,?,?)",
+                            (SHARED_CATEGORY, "neutro", "🤝", "#9C8CF0", top, "Shared expenses"))
+            con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('shared_category', '1')")
+            _bump_categories()
     # carte: riconosce le carte nei movimenti già presenti (una volta sola)
     if get_setting("cards_backfill", "") != "1":
         from core import cards
@@ -517,7 +554,8 @@ def find_twin(con, row: dict, family: str) -> int | None:
     hi = (d + pd.Timedelta(days=MATCH_DAYS)).strftime("%Y-%m-%d")
     cands = con.execute(
         f"""SELECT id, date, description FROM transactions
-            WHERE account=? AND currency=? AND abs(amount - ?) < 0.005 AND date BETWEEN ? AND ? AND {other}
+            WHERE account=? AND currency=? AND abs(COALESCE(split_total, amount) - ?) < 0.005
+              AND date BETWEEN ? AND ? AND {other} AND split_of IS NULL
               AND id NOT IN (SELECT tx_id FROM tx_links WHERE family=? AND tx_id IS NOT NULL)""",
         (row.get("account"), str(row.get("currency") or "").upper(), float(row["amount"]), lo, hi, family),
     ).fetchall()
@@ -626,13 +664,143 @@ def update_transaction(tx_id: int, **fields) -> None:
             f"UPDATE transactions SET {', '.join(k + '=?' for k in keys)} WHERE id=?",
             [fields[k] for k in keys] + [int(tx_id)],
         )
+        row = con.execute("SELECT id, split_of FROM transactions WHERE id=?", (int(tx_id),)).fetchone()
+        if row is None:
+            return
+        root = int(row["split_of"] or row["id"])
+        # un movimento diviso: data, conto, descrizione e valuta valgono per tutte le sue parti
+        if row["split_of"] is None:
+            same = {k: fields[k] for k in ("date", "account", "description", "currency") if k in fields}
+            if same:
+                con.execute(f"UPDATE transactions SET {', '.join(k + '=?' for k in same)} WHERE split_of=?",
+                            [*same.values(), root])
+        if "amount" in fields:
+            _fix_split_total(con, root)
+
+
+def _fix_split_total(con, root: int) -> None:
+    """Importo originale del movimento diviso = somma delle parti (NULL se non ha più parti)."""
+    n, tot = con.execute("SELECT COUNT(*), TOTAL(amount) FROM transactions WHERE split_of=?", (root,)).fetchone()
+    if n:
+        con.execute("UPDATE transactions SET split_total=round(amount + ?, 2) WHERE id=?", (tot, root))
+    else:
+        con.execute("UPDATE transactions SET split_total=NULL WHERE id=?", (root,))
 
 
 def delete_transactions(ids: list[int]) -> None:
+    """Cancella i movimenti. Cancellando un movimento diviso si cancellano anche le sue parti; cancellando solo una
+    parte, il suo importo torna al movimento da cui era stata divisa (il totale resta quello della banca)."""
+    ids = {int(i) for i in ids}
+    if not ids:
+        return
     with connect() as con:
-        con.executemany("DELETE FROM transactions WHERE id=?", [(int(i),) for i in ids])
+        q = ",".join("?" * len(ids))
+        ids |= {int(r[0]) for r in con.execute(f"SELECT id FROM transactions WHERE split_of IN ({q})", tuple(ids))}
+        q = ",".join("?" * len(ids))
+        parts = con.execute(f"SELECT id, split_of, amount, amount_base FROM transactions WHERE id IN ({q}) "
+                            "AND split_of IS NOT NULL", tuple(ids)).fetchall()
+        roots = set()
+        for p in parts:
+            root = int(p["split_of"])
+            if root in ids:
+                continue
+            roots.add(root)
+            con.execute("UPDATE transactions SET amount=round(amount + ?, 2), "
+                        "amount_base=CASE WHEN amount_base IS NULL OR ? IS NULL THEN amount_base "
+                        "ELSE round(amount_base + ?, 2) END WHERE id=?",
+                        (p["amount"], p["amount_base"], p["amount_base"], root))
+        con.executemany("DELETE FROM transactions WHERE id=?", [(i,) for i in ids])
         # le copie abbinate da altre fonti non restano «bloccate»: se reimportate, tornano come prima
-        con.executemany("DELETE FROM tx_links WHERE tx_id=?", [(int(i),) for i in ids])
+        con.executemany("DELETE FROM tx_links WHERE tx_id=?", [(i,) for i in ids])
+        # quote e rimborsi delle spese condivise legati a questi movimenti
+        con.executemany("DELETE FROM shared WHERE tx_id=?", [(i,) for i in ids])
+        for root in roots:
+            _fix_split_total(con, root)
+
+
+# ---------------------------------------------------------------- movimenti divisi
+class SplitError(ValueError):
+    """Divisione non possibile (importo troppo alto, movimento non trovato…): il messaggio si mostra così com'è."""
+
+
+def split_off(tx_id: int, amount: float, category: str, note: str = "", con=None) -> int:
+    """Stacca dal movimento `tx_id` una parte di `amount` (positivo, nella valuta del movimento) con la sua
+    categoria. La parte è un movimento a sé (stessa data, conto, descrizione e carta) collegato al movimento
+    diviso: totali, saldi e abbinamenti con la banca restano quelli dell'importo originale. Ritorna l'id."""
+    from core.i18n import t
+    if con is None:
+        with connect() as c:
+            return split_off(tx_id, amount, category, note, con=c)
+    r = con.execute("SELECT * FROM transactions WHERE id=?", (int(tx_id),)).fetchone()
+    if r is None:
+        raise SplitError(t("Movimento non trovato."))
+    amount = round(abs(float(amount)), 2)
+    cur = float(r["amount"])
+    if amount < 0.01:
+        raise SplitError(t("L'importo di ogni parte deve essere maggiore di zero."))
+    if amount >= round(abs(cur), 2):
+        raise SplitError(t("La parte deve essere minore dell'importo rimasto ({v}).", v=f"{abs(cur):.2f}"))
+    sign = -1.0 if cur < 0 else 1.0
+    part = round(sign * amount, 2)
+    base_part = None
+    if r["amount_base"] is not None and cur:
+        base_part = round(float(r["amount_base"]) * part / cur, 2)
+    root = int(r["split_of"] or r["id"])
+    if r["split_of"] is None and r["split_total"] is None:
+        con.execute("UPDATE transactions SET split_total=amount WHERE id=?", (root,))
+    con.execute("UPDATE transactions SET amount=round(amount - ?, 2), amount_base=CASE WHEN amount_base IS NULL "
+                "OR ? IS NULL THEN amount_base ELSE round(amount_base - ?, 2) END, category_locked=1 WHERE id=?",
+                (part, base_part, base_part, int(tx_id)))
+    ext = make_external_id("split", root, tx_id, part, datetime.now().isoformat(), os.urandom(4).hex())
+    cur_ins = con.execute(
+        """INSERT INTO transactions(date, description, amount, currency, fx_rate, amount_base, base_currency,
+               category, category_locked, account, source, notes, external_id, card, bank_uid, split_of)
+           VALUES (?,?,?,?,?,?,?,?,1,?,?,?,?,?,?,?)""",
+        (r["date"], r["description"], part, r["currency"], r["fx_rate"], base_part, r["base_currency"], category,
+         r["account"], r["source"], note or "", ext, r["card"], r["bank_uid"], root))
+    _fix_split_total(con, root)
+    return int(cur_ins.lastrowid)
+
+
+def split_transaction(tx_id: int, parts: list[tuple[str, float, str]]) -> list[int]:
+    """Divide il movimento in più parti: parts = [(categoria, importo positivo, nota), …]. La prima parte resta
+    sul movimento (cambia la sua categoria e nota), le altre diventano movimenti collegati. La somma delle parti
+    deve essere uguale all'importo del movimento."""
+    from core.i18n import t
+    with connect() as con:
+        r = con.execute("SELECT * FROM transactions WHERE id=?", (int(tx_id),)).fetchone()
+        if r is None:
+            raise SplitError(t("Movimento non trovato."))
+        parts = [(c, round(abs(float(a)), 2), n or "") for c, a, n in parts if c and a and abs(float(a)) >= 0.005]
+        if len(parts) < 2:
+            raise SplitError(t("Servono almeno due parti con un importo."))
+        total = round(abs(float(r["amount"])), 2)
+        if abs(sum(a for _c, a, _n in parts) - total) > 0.005:
+            raise SplitError(t("La somma delle parti ({s}) deve essere uguale all'importo del movimento ({v}).",
+                               s=f"{sum(a for _c, a, _n in parts):.2f}", v=f"{total:.2f}"))
+        new_ids = [split_off(tx_id, a, c, n, con=con) for c, a, n in parts[1:]]
+        first_cat, _a, first_note = parts[0]
+        con.execute("UPDATE transactions SET category=?, category_locked=1, notes=? WHERE id=?",
+                    (first_cat, first_note or (r["notes"] or ""), int(tx_id)))
+        return new_ids
+
+
+def split_family(tx_id: int) -> list[int]:
+    """Id del movimento diviso e delle sue parti (il movimento diviso per primo); [] se non è diviso."""
+    with connect() as con:
+        r = con.execute("SELECT id, split_of FROM transactions WHERE id=?", (int(tx_id),)).fetchone()
+        if r is None:
+            return []
+        root = int(r["split_of"] or r["id"])
+        kids = [int(x[0]) for x in con.execute("SELECT id FROM transactions WHERE split_of=? ORDER BY id", (root,))]
+    return [root] + kids if kids else []
+
+
+def unsplit(tx_id: int) -> None:
+    """Annulla la divisione: le parti tornano nel movimento originale (e le quote condivise legate spariscono)."""
+    fam = split_family(tx_id)
+    if fam:
+        delete_transactions(fam[1:])
 
 
 def accounts_list() -> list[str]:

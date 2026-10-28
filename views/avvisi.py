@@ -16,7 +16,11 @@ def alert_html(a: alerts.Alert) -> str:
 
 
 def open_alert(a: alerts.Alert) -> None:
-    if a.tx_id is not None:
+    if a.kind == "budget" and not a.category:
+        from views import nav
+        if "budget" in nav.PAGES:
+            st.switch_page(nav.PAGES["budget"])
+    elif a.tx_id is not None:
         focus.open_focus(a.tx_id)
     elif a.sid:
         abbonamenti.open_series(a.sid)
@@ -73,7 +77,8 @@ def render():
                     st.divider()
     st.caption(t("Controllo gli ultimi 60 giorni: addebiti doppi nello stesso giorno, spese molto più alte del solito "
                  "presso lo stesso negozio, le spese più alte dell'anno, categorie già sopra la media del mese, "
-                 "abbonamenti nuovi, cambiati di prezzo o non più addebitati."))
+                 "abbonamenti nuovi, cambiati di prezzo o non più addebitati. In più: gli addebiti in arrivo nei "
+                 "prossimi giorni e i budget all'80% o superati (si regola in Impostazioni → Email e promemoria)."))
     if gone:
         with st.expander(t("Ignorati ({n})", n=len(gone)), icon=":material/done_all:"):
             st.caption(t("«Elimina» li toglie anche da qui. Possono ricomparire solo se i movimenti vengono "

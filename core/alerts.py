@@ -7,7 +7,9 @@ Tipi:
 - categoria:  una categoria che questo mese è già molto sopra la sua media;
 - prezzo:     un abbonamento che ha cambiato importo;
 - nuovo:      un nuovo pagamento ricorrente;
-- disdetto:   un pagamento ricorrente che non è più arrivato.
+- disdetto:   un pagamento ricorrente che non è più arrivato;
+- scadenza:   un addebito ricorrente in arrivo nei prossimi giorni (promemoria);
+- budget:     una categoria (o il totale) arrivata all'80% del budget del mese, o oltre (core/budgets.py).
 Gli avvisi ignorati sono salvati nelle impostazioni (per id) e non ricompaiono.
 """
 from __future__ import annotations
@@ -27,7 +29,8 @@ DISMISSED_KEY = "alerts_dismissed"
 DELETED_KEY = "alerts_deleted"      # eliminati: non compaiono più da nessuna parte
 LEVEL_ORDER = {"alta": 0, "media": 1, "info": 2}
 ICONS = {"doppio": "content_copy", "insolita": "priority_high", "grande": "payments", "categoria": "trending_up",
-         "prezzo": "sell", "nuovo": "autorenew", "disdetto": "event_busy"}
+         "prezzo": "sell", "nuovo": "autorenew", "disdetto": "event_busy", "scadenza": "event_upcoming",
+         "budget": "account_balance_wallet"}
 _NO_PRICE = {"Tasse e imposte", "Interessi e dividendi", "Stipendio", "Rimborsi", "Altre entrate"}
 # categorie in cui gli importi variano per natura: niente avviso "spesa insolita" per esercente
 _NO_UNUSUAL = {"Contanti e prelievi", "Regali e donazioni", "Trasferimenti tra conti", "Investimenti",
@@ -67,8 +70,10 @@ def _d(x) -> str:
     return f"{x:{i18n.strf()}}"
 
 
-def compute(df: pd.DataFrame, series=None, today: date | None = None, horizon_days: int = 60) -> list[Alert]:
-    """df: transazioni come da db.transactions_df(); series: serie ricorrenti (core.recurring.detect)."""
+def compute(df: pd.DataFrame, series=None, today: date | None = None, horizon_days: int = 60,
+            reminder_days: int = 0) -> list[Alert]:
+    """df: transazioni come da db.transactions_df(); series: serie ricorrenti (core.recurring.detect);
+    reminder_days: promemoria per gli addebiti ricorrenti attesi da oggi ai prossimi giorni (0 = nessuno)."""
     out: list[Alert] = []
     if df.empty:
         return out
@@ -85,6 +90,10 @@ def compute(df: pd.DataFrame, series=None, today: date | None = None, horizon_da
     # ---- addebito doppio
     # inseriti a mano: li hai scritti tu, non sono addebiti della banca
     recent = exp[(exp["date"] >= since) & (exp["source"] != "manuale")].sort_values("date")
+    # movimenti divisi: le parti non sono addebiti a sé, il movimento diviso vale per il suo importo originale
+    if "split_of" in recent.columns:
+        recent = recent[recent["split_of"].isna()].copy()
+        recent["amount"] = recent["split_total"].where(recent["split_total"].notna(), recent["amount"])
     for (_acc, _ccy, _amt, _mk), g in recent.groupby(["account", "currency", recent["amount"].round(2), "mkey"]):
         if len(g) < 2 or abs(_amt) < 10:
             continue
@@ -161,8 +170,23 @@ def compute(df: pd.DataFrame, series=None, today: date | None = None, horizon_da
                 out.append(Alert(_id("categoria", cat, cur_p), "categoria", "media", t("{cat}: sopra la media", cat=db.category_label(cat)),
                                  txt, today_ts, category=cat))
 
-    # ---- abbonamenti
+    # ---- promemoria: addebiti ricorrenti in arrivo
     names = recurring.custom_names()
+    if reminder_days > 0 and series:
+        active = [s for s in series if s.active and s.kind == "uscita"]
+        end = (today_ts + pd.Timedelta(days=reminder_days)).date()
+        for d, s in recurring.upcoming(active, today_ts.date(), end):
+            nm = recurring.display_name(s, names)
+            n = (d.normalize() - today_ts.normalize()).days
+            when = t("oggi") if n == 0 else t("domani") if n == 1 else t("tra {n} giorni", n=n)
+            amt = (t("circa ") + _fmt(s.typical_base, base)) if s.variable else _fmt(s.amount, s.currency)
+            out.append(Alert(_id("scadenza", s.sid, d.date()), "scadenza", "media",
+                             t("{nm}: addebito {when}", nm=nm, when=when),
+                             t("{amt} il {d} sul conto {acc} ({cad}).", amt=amt, d=_d(d), acc=s.account,
+                               cad=t(s.cadence)),
+                             d, sid=s.sid, category=s.category))
+
+    # ---- abbonamenti
     for s in series or []:
         nm = recurring.display_name(s, names)
         if s.kind != "uscita":

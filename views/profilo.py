@@ -1,6 +1,9 @@
 """Profilo: nome, avatar, intestatari dei conti, riepilogo dei conti importati e collegamenti alle impostazioni."""
 from __future__ import annotations
 
+import json
+from datetime import date
+
 import pandas as pd
 import streamlit as st
 
@@ -42,18 +45,17 @@ def render():
             help=t("I bonifici verso o da questi nomi (es. dal conto Fineco al tuo Revolut) diventano "
                    "«Trasferimenti tra conti» e non contano come spese o entrate. Va bene anche «Cognome Nome»."))
         from core import recurring
-        sal_opts = ["ultimo_lav", "primo_lav", "auto"]
-        sal_labels = {"ultimo_lav": t("L'ultimo giorno lavorativo del mese"),
-                      "primo_lav": t("Il primo giorno lavorativo del mese"), "auto": t("Riconoscilo dai movimenti")}
-        cur_sal = recurring.salary_rule()
-        salary = st.selectbox(t("Lo stipendio arriva"), sal_opts, index=sal_opts.index(cur_sal) if cur_sal in sal_opts else 0,
-                              format_func=sal_labels.get, key="prof_salary",
-                              help=t("Serve a prevedere i prossimi accrediti (calendario, abbonamenti e entrate ricorrenti). "
-                                     "Giorni lavorativi: dal lunedì al venerdì, escluse le festività nazionali italiane."))
+        salary, sched_raw = _salary_inputs(tx)
+        bad_sched = salary in recurring.SCHEDULE_MODES and recurring.clean_schedule(sched_raw, salary) is None
         from views import lingua
         lingua.selector("prof_lang")
-        if st.button(t("Salva"), type="primary", key="prof_save", icon=":material/check:"):
+        save = st.button(t("Salva"), type="primary", key="prof_save", icon=":material/check:")
+        if save and bad_sched:
+            st.error(t("Scegli almeno un giorno del mese in cui arriva lo stipendio."), icon=":material/event_busy:")
+        if save and not bad_sched:
             db.set_setting(recurring.SALARY_KEY, salary)
+            if salary in recurring.SCHEDULE_MODES:
+                db.set_setting(recurring.SALARY_SCHED_KEY, json.dumps(sched_raw))
             db.set_setting("profile_name", new_name.strip())
             db.set_setting("profile_color", color or "viola")
             db.set_setting("owner_names", "\n".join(n.strip() for n in owners.splitlines() if n.strip()))
@@ -100,6 +102,58 @@ def render():
                 st.page_link(nav.PAGES["impostazioni"], label=t("Impostazioni: valuta, categorie, regole, backup"),
                              icon=":material/tune:")
         _alpha()
+
+
+def _salary_inputs(tx: pd.DataFrame) -> tuple[str, dict]:
+    """Quando arriva lo stipendio: ultimo/primo giorno lavorativo, giorni del mese a scelta (anche più d'uno),
+    ogni settimana o ogni 2 settimane, oppure riconosciuto dai movimenti. Ritorna (modalità, dettagli)."""
+    from core import recurring
+    modes = list(recurring.SALARY_MODES)
+    cur = recurring.salary_rule()
+    salary = st.selectbox(t("Lo stipendio arriva"), modes, index=modes.index(cur),
+                          format_func=lambda m: t(recurring.SALARY_MODES[m]), key="prof_salary",
+                          help=t("Serve a prevedere i prossimi accrediti (calendario, abbonamenti, previsione di fine "
+                                 "mese). Per l'ultimo e il primo giorno lavorativo valgono le festività italiane; "
+                                 "con le altre scelte puoi indicare tu il calendario delle festività."))
+    try:
+        saved = json.loads(db.get_setting(recurring.SALARY_SCHED_KEY, "{}") or "{}")
+        saved = saved if isinstance(saved, dict) else {}
+    except (ValueError, TypeError):
+        saved = {}
+    raw: dict = {}
+    if salary == "giorni":
+        old = [int(x) for x in saved.get("days") or [] if str(x).isdigit() and 1 <= int(x) <= 31]
+        raw["days"] = st.multiselect(
+            t("Giorni del mese"), list(range(1, 32)), default=old or [27], key="prof_sal_days",
+            format_func=lambda d: t("{d} (o l'ultimo del mese)", d=d) if d >= 29 else str(d),
+            placeholder=t("Scegli uno o più giorni"),
+            help=t("Tutti i giorni in cui arriva, per esempio 15 e 31 se ti pagano due volte al mese. Nei mesi più "
+                   "corti il 29, il 30 e il 31 diventano l'ultimo giorno del mese."))
+    elif salary in ("bisettimanale", "settimanale"):
+        try:
+            ref = pd.Timestamp(saved["ref"]).date()
+        except (KeyError, TypeError, ValueError):
+            sal = tx[(tx["category"] == recurring.SALARY_CATEGORY) & (tx["amount"] > 0)] if not tx.empty else tx
+            ref = sal["date"].max().date() if not sal.empty else date.today()
+        ref = st.date_input(t("Un giorno in cui è arrivato (o arriverà)"), value=ref, format=i18n.date_fmt(),
+                            key="prof_sal_ref",
+                            help=t("Da qui si contano le settimane: va bene qualsiasi giorno di paga, passato o futuro."))
+        raw["ref"] = ref.isoformat() if ref else ""
+    if salary in recurring.SCHEDULE_MODES:
+        shifts, cals = list(recurring.SHIFTS), list(recurring.CALENDARS)
+        raw["shift"] = st.selectbox(t("Se cade di sabato, domenica o festivo"), shifts,
+                                    index=shifts.index(saved.get("shift")) if saved.get("shift") in shifts else 0,
+                                    format_func=lambda k: t(recurring.SHIFTS[k]), key="prof_sal_shift")
+        default_cal = saved.get("cal") if saved.get("cal") in cals else "IT"
+        raw["cal"] = st.selectbox(t("Festività"), cals, index=cals.index(default_cal),
+                                  format_func=lambda k: t(recurring.CALENDARS[k]), key="prof_sal_cal")
+        sched = recurring.clean_schedule(raw, salary)
+        if sched:
+            nxt = recurring.schedule_dates(sched, date.today(), pd.Timestamp(date.today()) + pd.Timedelta(days=70))[:4]
+            st.caption(t("Prossimi accrediti: {d}", d=", ".join(_d(x) for x in nxt)))
+        else:
+            st.caption(t("Scegli almeno un giorno del mese in cui arriva lo stipendio."))
+    return salary, raw
 
 
 def _alpha() -> None:

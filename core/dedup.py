@@ -30,8 +30,9 @@ def run(mapping: dict[str, str] | None = None, apply: bool = False) -> dict:
         try:
             for uid, label in (mapping or {}).items():
                 report["moved"] += eb.relabel(con, uid, label)
-            rows = con.execute("SELECT * FROM transactions WHERE source LIKE 'openbanking%' "
-                               "ORDER BY date, id").fetchall()
+            # i movimenti divisi a mano (e le loro parti) si lasciano come sono
+            rows = con.execute("SELECT * FROM transactions WHERE source LIKE 'openbanking%' AND split_of IS NULL "
+                               "AND split_total IS NULL ORDER BY date, id").fetchall()
             for r in rows:
                 acc = report["accounts"].setdefault(r["account"], {"api": 0, "doppi": 0, "zero": 0, "nuovi": 0})
                 acc["api"] += 1
