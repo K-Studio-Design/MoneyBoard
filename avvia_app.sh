@@ -39,4 +39,4 @@ if ! cmp -s requirements.txt "$VENV/requirements.installati.txt"; then
     "$PY" -m pip install -r requirements.txt && cp requirements.txt "$VENV/requirements.installati.txt"
 fi
 
-exec "$PY" -m streamlit run app.py
+exec "$PY" -m streamlit run app.py --server.headless false

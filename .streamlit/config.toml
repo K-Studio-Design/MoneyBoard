@@ -1,5 +1,7 @@
 [server]
-headless = false
+# true: nessuna domanda all'avvio (serve per la demo online su Streamlit Community Cloud);
+# avvia_app.bat / avvia_app.sh aprono comunque il browser con --server.headless false
+headless = true
 maxUploadSize = 50
 
 [browser]

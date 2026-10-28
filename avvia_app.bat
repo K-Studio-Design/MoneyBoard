@@ -39,5 +39,5 @@ if errorlevel 1 (
     if not errorlevel 1 copy /y requirements.txt "%VENV%\requirements.installati.txt" >nul
 )
 
-"%VENV%\Scripts\python.exe" -m streamlit run app.py
+"%VENV%\Scripts\python.exe" -m streamlit run app.py --server.headless false
 pause
