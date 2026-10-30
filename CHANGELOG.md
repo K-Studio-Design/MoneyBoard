@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.1 (2026-10-30)
+
+- **Revolut pockets**: Revolut doesn't share pockets with linked apps, so MoneyBoard follows them from the transfers
+  in the main account ("To EUR MB:…" / "From EUR MB:…"): each pocket becomes its own account, with its balance
+  included in the totals, and the transfers count neither as spending nor as income. You can rename it in
+  Connect banks (for example "Revolut Taxes").
+- If a bank does share a new account (or pocket), link the bank again and select all accounts: it appears with its
+  own balance.
+- **Renewing a bank link no longer duplicates anything**: accounts you already had are recognized (Enable Banking
+  gives new ids at every consent), keep their name in the app and history, and transactions aren't downloaded twice.
+- Moving money between two linked accounts of the same bank (for example into a pocket) counts as a transfer on
+  both sides, not as spending or income.
+- Cards: pockets show up as their own entries next to the main account (you can hide one from the card itself,
+  and show it again from Connect banks).
+- Connect banks: each linked account has its own sync button, so you can sync just one account.
+
 ## 1.2.0 (2026-10-28)
 
 - **Budgets**: a monthly cap per category and for total spending, with progress bars, a daily allowance for the rest

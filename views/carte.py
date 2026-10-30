@@ -41,6 +41,10 @@ def _linked() -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def _same(a, b) -> bool:
+    return str(a or "").strip().lower() == str(b or "").strip().lower()
+
+
 def _card_list(tx: pd.DataFrame) -> list[dict]:
     """Carte da mostrare: quelle riconosciute nei movimenti e le carte collegate via Open Banking.
     Ogni voce: id, title, kind, digits, account, rows (movimenti), balance (saldo dalla banca o None)."""
@@ -88,27 +92,76 @@ def _card_list(tx: pd.DataFrame) -> list[dict]:
         acc = acc[[not eb.is_card(r) for r in acc.to_dict("records")]]
         if not acc.empty:
             base = db.base_currency()
+            # prima il conto principale (con IBAN), non un pocket o salvadanaio della stessa banca
+            acc = acc.assign(_main=acc["iban"].fillna("").astype(str).str.strip() != "").sort_values(
+                "_main", ascending=False, kind="stable")
             main = acc[acc["balance_currency"].fillna(acc["currency"]) == base]
             r = (main if not main.empty else acc).iloc[0]
             c.update(account_balance=float(r["balance"]), account_balance_ccy=r["balance_currency"] or r["currency"],
                      balance_date=str(r["balance_date"] or "")[:10])
     # conti collegati senza carte riconoscibili (es. Revolut): compaiono come conto, con saldo e spese
     with_cards = {c["account"] for c in out}
-    for a in linked.to_dict("records") if not linked.empty else []:
-        if eb.is_card(a):
-            continue
-        acc = a["label"] or a["aspsp_name"]
+    plain = [a for a in (linked.to_dict("records") if not linked.empty else []) if not eb.is_card(a)]
+
+    def _key(a):
+        return (a["label"] or a["aspsp_name"], str(a.get("balance_currency") or a.get("currency") or "").upper())
+
+    groups: dict = {}
+    for a in plain:
+        groups.setdefault(_key(a), []).append(a)
+    for a in plain:
+        acc, ccy = _key(a)
         if acc in with_cards:
             continue
-        ccy = str(a.get("balance_currency") or a.get("currency") or "").upper()
         rows = tx[(tx["account"] == acc) & (tx["currency"] == ccy)] if not tx.empty else tx
+        name = t("Conto {acc} {ccy}", acc=acc, ccy=ccy).strip()
+        same = groups[(acc, ccy)]
+        if len(same) > 1 and not rows.empty:
+            # stesso conto nell'app e stessa valuta (es. conto Revolut e un suo pocket): ognuno i suoi movimenti.
+            # Il conto con l'IBAN tiene anche quelli senza collegamento (estratti importati)
+            others = {o["uid"] for o in same if o["uid"] != a["uid"]}
+            has_iban = bool(str(a.get("iban") or "").strip())
+            mask = rows["bank_uid"] == a["uid"]
+            if has_iban:
+                mask |= ~rows["bank_uid"].isin(others)
+            rows = rows[mask]
+        if len(same) > 1:
+            extra = str(a.get("iban") or "").strip()
+            extra = ("IBAN …" + extra[-4:]) if extra else (t("pocket / salvadanaio") + (
+                f" «{a.get('account_name')}»" if a.get("account_name") and not any(
+                    _same(a.get("account_name"), o.get("account_name")) for o in same if o["uid"] != a["uid"]) else ""))
+            name = f"{name} · {extra}"
         has_bal = pd.notna(a.get("balance"))
         if not has_bal and rows.empty:
             continue
         out.append({"id": f"k|{a['uid']}", "digits": "", "account": acc, "kind": "", "uid": a["uid"],
-                    "is_account": True, "ccy": ccy, "name": t("Conto {acc} {ccy}", acc=acc, ccy=ccy).strip(), "rows": rows,
+                    "is_account": True, "ccy": ccy, "name": name, "rows": rows,
                     "balance": float(a["balance"]) if has_bal else None, "balance_ccy": ccy or None,
                     "balance_date": str(a.get("balance_date") or "")[:10] if has_bal else None})
+    out += _pocket_items(tx)
+    return out
+
+
+def _pocket_items(tx: pd.DataFrame) -> list[dict]:
+    """Pocket Revolut seguiti dai giroconti (Collega banche → Pocket e salvadanai), se non nascosti."""
+    try:
+        from core import forecast, pockets
+        pk = pockets.pockets()
+    except Exception:
+        return []
+    out = []
+    for pid, p in pk.items():
+        if not pockets.shown(p):
+            continue
+        name, ccy = p.get("name") or "", str(p.get("currency") or "").upper()
+        rows = tx[(tx["account"] == name) & (tx["currency"] == ccy)] if not tx.empty else tx
+        try:
+            bal = forecast.account_balance(name, ccy, tx) if not tx.empty else None
+        except Exception:
+            bal = None
+        out.append({"id": f"p|{pid}", "digits": "", "account": p.get("bank") or name, "kind": "", "uid": None,
+                    "is_account": True, "is_pocket": True, "pid": pid, "ccy": ccy, "name": name, "rows": rows,
+                    "balance": bal, "balance_ccy": ccy or None, "balance_date": date.today().isoformat()})
     return out
 
 
@@ -119,6 +172,10 @@ def _balance(c: dict) -> tuple[float, str, str] | None:
         d = i18n.day_month(pd.Timestamp(str(c.get("balance_date") or "")[:10]))
     except (ValueError, TypeError):
         d = "–"
+    if c.get("is_pocket"):
+        if c.get("balance") is None:
+            return None
+        return c["balance"], c.get("balance_ccy") or base, t("pocket, saldo dai giroconti")
     if c.get("balance") is not None:
         src = t("saldo al {d}", d=d) if c.get("is_account") else t("saldo della carta al {d}", d=d)
         return c["balance"], c.get("balance_ccy") or base, src
@@ -181,7 +238,10 @@ def render() -> None:
     for c in items:
         r = c["rows"]
         last = r["date"].max() if not r.empty else None
-        if c.get("balance") is not None and c.get("is_account"):
+        if c.get("is_pocket"):
+            synced = (t("{v} (pocket, dai giroconti)", v=ui.money(c["balance"], c["balance_ccy"] or base))
+                      if c.get("balance") is not None else "–")
+        elif c.get("balance") is not None and c.get("is_account"):
             synced = t("{v} (conto, {d})", v=ui.money(c["balance"], c["balance_ccy"] or base),
                        d=_dd(c["balance_date"]))
         elif c.get("balance") is not None:
@@ -232,7 +292,11 @@ def _card_body(card_id: str) -> None:
              (t("Ultimi 12 mesi"), ui.money(_spent(rows, today - timedelta(days=365), today), base)),
              (t("Movimenti"), f"{len(rows)}", t("dal {d}", d=f"{rows['date'].min():{i18n.strf()}}") if not rows.empty
               else None)]
-    if c.get("balance") is not None:
+    if c.get("is_pocket"):
+        if c.get("balance") is not None:
+            items.insert(0, (t("Saldo del pocket"), ui.money(c["balance"], c["balance_ccy"] or base),
+                             t("dai giroconti con {acc}", acc=c["account"])))
+    elif c.get("balance") is not None:
         items.insert(0, (t("Saldo del conto") if c.get("is_account") else t("Saldo della carta"),
                          ui.money(c["balance"], c["balance_ccy"] or base),
                          t("dalla banca, {d}", d=_dd(c["balance_date"]))))
@@ -284,6 +348,14 @@ def _card_body(card_id: str) -> None:
         if st.button(t("Nascondi questa carta"), key=f"card_hide_{card_id}", icon=":material/visibility_off:",
                      help=t("Per esempio una carta scaduta o sostituita. I movimenti restano.")):
             cards.set_hidden(account, digits, True)
+            st.rerun()
+    elif c.get("is_pocket"):
+        st.caption(t("Pocket seguito dai giroconti con {acc}: il nome si cambia in Collega banche → Pocket e "
+                     "salvadanai, dove puoi anche farlo ricomparire qui.", acc=c["account"]))
+        if st.button(t("Nascondi questo pocket da Carte"), key=f"pk_hide_{card_id}", icon=":material/visibility_off:",
+                     help=t("Il saldo resta comunque nei totali.")):
+            from core import pockets
+            pockets.set_show(c["pid"], False)
             st.rerun()
     elif c.get("is_account"):
         st.caption(t("Conto collegato via Open Banking: il conto dell'app si sceglie in Collega banche."))

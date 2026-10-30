@@ -88,7 +88,17 @@ def _link():
                 code = eb.extract_code(back)
                 accs = eb.create_session(code, pend["bank"], pend["country"])
                 st.session_state.pop("eb_pending", None)
-                st.success(t("Collegati {n} conti: ", n=len(accs)) + ", ".join(a["name"] for a in accs))
+                new = [a for a in accs if not a.get("renewed")]
+                old = [a for a in accs if a.get("renewed")]
+                if new:
+                    st.success(t("Nuovi conti collegati ({n}): ", n=len(new)) + ", ".join(a["name"] for a in new))
+                if old:
+                    st.success(t("Collegamento rinnovato per {n} conti già presenti: stesso conto nell'app e "
+                                 "nessun movimento doppio.", n=len(old)))
+                if not accs:
+                    st.warning(t("La banca non ha autorizzato nessun conto."))
+                st.info(t("Premi «Sincronizza tutti» qui sopra per scaricare movimenti e saldi."),
+                        icon=":material/sync:")
             except Exception as e:
                 st.error(t("Errore: {err}", err=e))
 
@@ -179,6 +189,37 @@ def _auto_sync_box() -> None:
                 st.error(msg)
 
 
+def _pockets_box() -> None:
+    """Pocket Revolut seguiti dai giroconti (la banca non li mostra all'app): nome e saldo."""
+    from core import pockets
+    pk = pockets.pockets()
+    if not pk:
+        return
+    with st.container(border=True, key="eb_pockets"):
+        st.markdown("**" + t("Pocket e salvadanai") + "**")
+        st.caption(t("Revolut non mostra i pocket alle app collegate, ma nel conto si vede ogni soldo che ci metti o "
+                     "che riprendi: da questi l'app tiene un conto a parte per ogni pocket, incluso nei totali. Il "
+                     "saldo parte da zero e segue i giroconti; se nel pocket c'erano già soldi correggilo da Profilo → "
+                     "saldi dei conti."))
+        for pid, p in pk.items():
+            c1, c2, c3 = st.columns([3, 2, 1], vertical_alignment="bottom")
+            name = c1.text_input(t("Nome del conto"), value=p["name"], key=f"pk_name_{pid}",
+                                 help=t("Per esempio «Revolut Tasse»."))
+            bal = pockets.balance(pid)
+            c2.markdown(t("Saldo: **{v}**", v=ui.money(bal, p["currency"]) if bal is not None else "–"))
+            show = c2.toggle(t("Mostra in Carte"), value=pockets.shown(p), key=f"pk_show_{pid}")
+            if show != pockets.shown(p):
+                pockets.set_show(pid, show)
+                st.cache_data.clear()
+            if c3.button(t("Salva"), key=f"pk_save_{pid}", width="stretch", disabled=name.strip() == p["name"]):
+                try:
+                    pockets.rename(pid, name)
+                    st.cache_data.clear()
+                    st.rerun()
+                except pockets.PocketError as e:
+                    st.error(str(e))
+
+
 def render():
     style.header(t("Collega banche"), t("Sincronizzazione automatica dei movimenti tramite Open Banking"))
     from core import demo_mode
@@ -195,6 +236,12 @@ def render():
     accs = eb.accounts_df()
     if not accs.empty:
         _duplicates_box()
+    try:
+        from core import pockets
+        if pockets.sync():
+            st.cache_data.clear()
+    except Exception:
+        pass
     st.subheader(t("Conti collegati"))
     if accs.empty:
         st.caption(t("Nessun conto collegato."))
@@ -202,6 +249,13 @@ def render():
         _auto_sync_box()
         since = st.date_input(t("Scarica movimenti dal (vuoto = dall'ultima sincronizzazione)"), value=None,
                               format=i18n.date_fmt(), max_value=date.today())
+        for msg, level in st.session_state.pop("eb_sync_msgs", None) or []:
+            if level == "ok":
+                st.success(msg, icon=":material/check_circle:")
+            elif level == "soft":
+                st.warning(msg, icon=":material/schedule:")
+            else:
+                st.error(msg)
         if st.button(t("Sincronizza tutti"), icon=":material/sync:", type="primary"):
             for _, a in accs.iterrows():
                 try:
@@ -232,11 +286,27 @@ def render():
                 c2.markdown(t("Consenso fino al: **{d}**", d=exp or "?") + (t(" (scaduto, ricollega)") if expired else ""))
                 c2.caption(t("Ultima sync: {d}", d=a["last_sync"] or t("mai")))
                 _label_picker(c3, a, app_accounts)
+                if c4.button("", icon=":material/sync:", key=f"sync_{a['uid']}",
+                             help=t("Sincronizza solo questo conto (dalla data scelta sopra, se c'è)")):
+                    try:
+                        ins, skip = eb.sync_account(a["uid"], since)
+                        msg = (t("{label} · {name}: {n} nuovi movimenti ({s} già presenti)", label=a["label"],
+                                 name=a["account_name"], n=ins, s=skip), "ok")
+                    except Exception as e:
+                        m, soft = eb.sync_error(a.to_dict(), e)
+                        msg = (m, "soft" if soft else "err")
+                    st.session_state["eb_sync_msgs"] = [msg]
+                    st.cache_data.clear()
+                    st.rerun()
                 if c4.button("", icon=":material/delete:", key=f"del_{a['uid']}", help=t("Rimuovi il collegamento (i movimenti restano)")):
                     eb.remove_account(a["uid"])
                     st.rerun()
         st.caption(t("I movimenti già scaricati non vengono duplicati, nemmeno quelli già importati dagli estratti "
                      "(stesso conto, importo e data entro 4 giorni). Primo scarico: ultimi 90 giorni (molte banche via "
                      "PSD2 non forniscono più di 90 giorni di storico; per lo storico precedente usa l'import file)."))
+        _pockets_box()
+        st.caption(t("Hai aperto un nuovo conto, un pocket o un salvadanaio? La banca lo mostra all'app solo se lo "
+                     "autorizzi: ricollega la banca qui sotto e, sul sito della banca, scegli tutti i conti. I conti "
+                     "già collegati vengono riconosciuti: restano dove sono, senza movimenti doppi."))
     st.divider()
     _link()

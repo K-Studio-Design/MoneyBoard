@@ -299,7 +299,10 @@ _EXTRA_COLUMNS = {
     "transactions": {"card": "TEXT", "bank_uid": "TEXT", "split_of": "INTEGER", "split_total": "REAL"},
     "categories": {"name_en": "TEXT"},       # nome mostrato quando l'app è in inglese (vuoto = come il nome)
     "bank_accounts": {"cash_account_type": "TEXT", "product": "TEXT", "balance": "REAL", "balance_currency": "TEXT",
-                      "balance_type": "TEXT", "balance_date": "TEXT", "balances_json": "TEXT"},
+                      "balance_type": "TEXT", "balance_date": "TEXT", "balances_json": "TEXT",
+                      # ident_hash: id del conto stabile tra un consenso e l'altro (Enable Banking);
+                      # old_uids: id dei collegamenti precedenti dello stesso conto (JSON), per non duplicare i movimenti
+                      "ident_hash": "TEXT", "old_uids": "TEXT"},
 }
 
 

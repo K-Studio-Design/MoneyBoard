@@ -4,8 +4,10 @@
 Track spending, income, subscriptions, savings goals and investments in a clean dashboard. No cloud account,
 no servers: all your data stays in a local database on your own machine.
 
-*Made by **K Studio Design** in Italy · version 1.2.0 · free for personal and noncommercial use
+*Made by **K Studio Design** in Italy · version 1.2.1 · free for personal and noncommercial use
 ([PolyForm Noncommercial 1.0.0](LICENSE.md)) · [Leggi in italiano](README.it.md)*
+
+**▶ [Try the live demo](https://moneyboard-demo.streamlit.app)** — no install, no sign-up, made-up data.
 
 ![MoneyBoard demo](docs/media/moneyboard-demo.gif)
 
@@ -117,6 +119,8 @@ To update the packages, run `avvia_app.bat aggiorna` or `./avvia_app.sh aggiorna
   password.
 
 ## Online demo
+
+**Try it now: [moneyboard-demo.streamlit.app](https://moneyboard-demo.streamlit.app)** (if it has been idle for a while, click the button to wake it up and wait a few seconds).
 
 The app has a demo mode for trying it in the browser. With the setting `MONEYBOARD_DEMO = "1"` it doesn't ask for
 a sign-in: every visitor gets their own sandbox with made-up data, which is deleted after a few hours. Bank

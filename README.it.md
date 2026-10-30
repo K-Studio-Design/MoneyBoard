@@ -5,8 +5,10 @@
 App per gestire spese, entrate, abbonamenti, obiettivi di risparmio e investimenti, con i dati salvati **solo sul
 tuo computer** (nessun server, nessun account online). Interfaccia in italiano e in inglese.
 
-Fatta da **K Studio Design** in Italia · versione 1.2.0 · licenza
+Fatta da **K Studio Design** in Italia · versione 1.2.1 · licenza
 [PolyForm Noncommercial 1.0.0](LICENSE.md): gratuita per uso personale e non commerciale (vedi sotto).
+
+**▶ [Prova la demo online](https://moneyboard-demo.streamlit.app)**: niente installazione, niente registrazione, dati inventati (in inglese).
 
 ## Avvio rapido
 
@@ -161,6 +163,8 @@ fai *Link accounts* dei tuoi conti nel Control Panel → inserisci Application I
 Il consenso PSD2 scade in genere dopo 90–180 giorni e va rinnovato.
 
 ## Demo online
+
+**Provala subito: [moneyboard-demo.streamlit.app](https://moneyboard-demo.streamlit.app)** (se nessuno la usa da un po' è in pausa: clicca il pulsante per riattivarla e aspetta qualche secondo).
 
 Con l'impostazione `MONEYBOARD_DEMO = "1"` l'app non chiede l'accesso: ogni visitatore riceve un account di prova
 tutto suo, con dati inventati che si cancellano dopo qualche ora; banche, cartelle, backup ed email sono spenti.
