@@ -5,7 +5,7 @@
 App per gestire spese, entrate, abbonamenti, obiettivi di risparmio e investimenti, con i dati salvati **solo sul
 tuo computer** (nessun server, nessun account online). Interfaccia in italiano e in inglese.
 
-Fatta da **K Studio Design** in Italia · versione 1.2.1 · licenza
+Fatta da **K Studio Design** in Italia · versione 1.3.0 · licenza
 [PolyForm Noncommercial 1.0.0](LICENSE.md): gratuita per uso personale e non commerciale (vedi sotto).
 
 **▶ [Prova la demo online](https://moneyboard-demo.streamlit.app)**: niente installazione, niente registrazione, dati inventati (in inglese).
@@ -75,6 +75,8 @@ Le traduzioni stanno in `core/i18n_en.py` (testo italiano → testo inglese).
 Menu dell'avatar → **Carte**: le carte trovate nei movimenti (dal numero scritto nella descrizione, per esempio
 «Carta N. ***** 123» di Fineco) e quelle collegate via Open Banking, con lo speso del mese, il saldo sincronizzato
 dalla banca e, cliccando, tutte le spese fatte con quella carta. Nome personalizzabile, carte vecchie nascondibili.
+Ogni carta (e ogni conto) è disegnata come una carta vera: puoi sceglierne il colore oppure caricare il disegno della
+carta preso dall'app della banca.
 Per riconoscere le carte anche nello storico, importa di nuovo l'ultimo estratto Fineco (i movimenti non si
 duplicano). Revolut non indica con quale carta è stato fatto un pagamento.
 
@@ -133,7 +135,7 @@ Tutto si configura in *Impostazioni → Cartelle e backup* (menu dell'avatar in 
 | ✂️ Dividere un movimento | Dal dettaglio di un movimento: un pagamento diviso in più categorie (es. un ordine online con un regalo e una cosa per la casa). Il totale resta quello della banca |
 | 🤝 Spese condivise | Chi ti deve dei soldi e a chi li devi tu: la quota di una spesa pagata anche per altri, i rimborsi ricevuti o dati, il saldo per persona. Nelle tue spese resta solo la tua parte |
 | ✉️ Email (facoltative) | Riepilogo del mese il giorno 1 e promemoria degli addebiti in arrivo, con il tuo account di posta (Gmail, iCloud, Yahoo o un altro server SMTP): Impostazioni → Email e promemoria |
-| 🎯 Obiettivi | Obiettivi di risparmio con scadenza: versamenti a mano, saldo di un conto (es. il conto deposito) oppure risparmio (entrate meno spese) da una data. Avanzamento, quanto serve al mese, previsione al ritmo attuale, confronto con il tuo risparmio medio |
+| 🎯 Obiettivi | Obiettivi di risparmio con scadenza: versamenti a mano, saldo di un conto (es. il conto deposito) oppure risparmio (entrate meno spese) da una data. Avanzamento, quanto serve al mese, previsione al ritmo attuale, confronto con il tuo risparmio medio. Ogni obiettivo ha un'immagine: un'illustrazione scelta dal nome, una scelta da te o una tua foto |
 | 📥 Importa (menu dell'avatar) | Estratti **Fineco** (Excel), **Revolut** (estratto *consolidato* Excel con tutti i conti/valute, oppure CSV), **Chase** (CSV del conto o della carta, oppure QFX/OFX: riconosce da solo il tipo, i pagamenti della carta, gli Zelle verso te stesso e i resi), o qualunque CSV/Excel con mappatura colonne. Duplicati ignorati, categorie automatiche |
 | 🏦 Collega banche (menu dell'avatar) | Sincronizzazione automatica via Open Banking (Enable Banking) per Fineco, Revolut e altre banche UE |
 | 📈 Investimenti | Dividendi, ritenute, bollo e imposte sul capital gain letti dagli estratti (con le quote possedute), import dell'export del portafoglio titoli (colonne ISIN e Quantità), rendimento netto complessivo; titoli per ISIN (ticker trovato in automatico), operazioni di acquisto/vendita, prezzo medio, P/L latente e realizzato, grafici; saldi degli exchange crypto via API in sola lettura |

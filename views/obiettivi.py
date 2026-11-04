@@ -7,7 +7,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from core import db, goals, i18n
+from core import db, goal_images, goals, i18n, images
 from core.i18n import t
 from views import cerca, style, ui
 
@@ -23,20 +23,30 @@ STATUS = {
 COLOR_NAMES = {"#7C5CFC": "Viola", "#14AE9E": "Verde acqua", "#F0627E": "Corallo", "#F5A524": "Arancio",
                "#3B82F6": "Blu", "#EC4899": "Fucsia", "#22C55E": "Verde", "#8B5CF6": "Lavanda"}
 COLORS = list(COLOR_NAMES)
+def _banner(url: str | None, big: bool = False) -> str:
+    """Immagine dell'obiettivo come fascia in alto (url: indirizzo «data:» già pronto, o None)."""
+    if not url:
+        return ""
+    return f'<div class="as-goal-img{" big" if big else ""}" style="background-image:url({style.e(url)})"></div>'
+
+
 def _month_year(d) -> str:
     d = pd.Timestamp(d)
     return f"{i18n.month(d.month)} {d.year}"
 
 
 def _ring(pct: float, color: str) -> str:
-    """Anello di avanzamento in SVG (0-100%)."""
+    """Anello di avanzamento (0-100%). st.html toglie gli <svg> scritti nella pagina: l'anello va come immagine e
+    la percentuale come testo sopra."""
+    import base64
     p = max(0.0, min(100.0, pct))
     r, c = 34, 2 * 3.14159 * 34
-    return (f'<svg viewBox="0 0 80 80" class="ring" aria-hidden="true">'
-            f'<circle cx="40" cy="40" r="{r}" fill="none" stroke="var(--as-track)" stroke-width="8"/>'
-            f'<circle cx="40" cy="40" r="{r}" fill="none" stroke="{color}" stroke-width="8" stroke-linecap="round"'
-            f' stroke-dasharray="{c * p / 100:.1f} {c:.1f}" transform="rotate(-90 40 40)"/>'
-            f'<text x="40" y="45" text-anchor="middle">{p:.0f}%</text></svg>')
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">'
+           f'<circle cx="40" cy="40" r="{r}" fill="none" stroke="#8C8AA0" stroke-opacity="0.28" stroke-width="8"/>'
+           f'<circle cx="40" cy="40" r="{r}" fill="none" stroke="{color}" stroke-width="8" stroke-linecap="round"'
+           f' stroke-dasharray="{c * p / 100:.1f} {c:.1f}" transform="rotate(-90 40 40)"/></svg>')
+    url = "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    return f'<div class="ring"><img src="{url}" alt=""><span>{p:.0f}%</span></div>'
 
 
 def _plan_text(g: dict, p: goals.Progress, ccy: str) -> str:
@@ -121,7 +131,7 @@ def _goal_card(g: dict, p: goals.Progress, ccy: str) -> None:
     how = t(goals.MODES.get(g.get("mode") or "manuale", "")) if goals.MODES.get(g.get("mode") or "manuale") else ""
     if g.get("mode") == "conto":
         how = t("saldo {acc} {ccy}", acc=g.get("account"), ccy=g.get("account_ccy"))
-    st.html(f'''<div class="as-goal">{_ring(p.pct, color)}
+    st.html(f'''{_banner(goal_images.url_for(g))}<div class="as-goal">{_ring(p.pct, color)}
   <div class="info"><div class="n">{style.e(g["name"])}</div>
   <div class="v">{style.e(ui.money(p.current, ccy))} <span>{style.e(t("di {v}", v=ui.money(p.target, ccy)))}</span></div>
   <div class="m">{style.e(dl)}, {style.e(how)}</div>
@@ -159,7 +169,7 @@ def _goal_dialog(goal_id: int) -> None:
     label, cls = STATUS.get(p.status, ("", ""))
     label = t(label) if label else ""
     dl = t("entro {d}", d=_month_year(g["deadline"])) if g.get("deadline") else t("senza scadenza")
-    st.html(f'''<div class="as-focus-top" style="background:linear-gradient(135deg,{color},{style.rgba(color, 0.55)})">
+    st.html(f'''{_banner(goal_images.url_for(g), big=True)}<div class="as-focus-top" style="background:linear-gradient(135deg,{color},{style.rgba(color, 0.55)})">
   <div><div class="amt">{style.e(ui.money(p.current, base))}</div>
   <div class="conv">{style.e(t("di {v}", v=ui.money(p.target, base)))}, {p.pct:.0f}%</div></div>
   <div class="when"><b>{style.e(label)}</b><br>{style.e(dl)}<br>
@@ -272,9 +282,62 @@ def _goal_form(tx: pd.DataFrame, base: str, g: dict | None) -> None:
     cur_color = (g or {}).get("color") if (g or {}).get("color") in COLORS else COLORS[0]
     color = st.selectbox(t("Colore"), COLORS, index=COLORS.index(cur_color), format_func=lambda c: t(COLOR_NAMES[c]),
                          key=f"{k}_color")
+    img_mode, preset, photo, has_photo = _image_fields(k, g, name)
+    missing_photo = img_mode == "custom" and photo is None and not has_photo
     if st.button(t("Salva obiettivo") if g else t("Crea obiettivo"), type="primary", key=f"{k}_save",
-                 disabled=not name.strip() or target <= 0):
+                 disabled=not name.strip() or target <= 0 or missing_photo):
+        data = None
+        if img_mode == "custom" and photo is not None:
+            data = photo.getvalue()
+            try:
+                images.prepare(data, "photo")   # controllo prima di salvare l'obiettivo
+            except images.ImageError as e:
+                st.error(str(e))
+                return
         fields.update(name=name.strip(), target=target, deadline=deadline.isoformat() if deadline else None,
-                      start_date=start.isoformat(), mode=mode, color=color or COLORS[0])
-        db.save_goal(fields, int(g["id"]) if g else None)
+                      start_date=start.isoformat(), mode=mode, color=color or COLORS[0],
+                      image_mode=img_mode, image_preset=preset)
+        gid = db.save_goal(fields, int(g["id"]) if g else None)
+        if data is not None:
+            images.save(goal_images.image_key(gid), data, "photo")
+        elif img_mode != "custom":
+            images.delete(goal_images.image_key(gid))  # la foto non serve più
         st.rerun()
+
+
+def _image_fields(k: str, g: dict | None, name: str):
+    """Scelta dell'immagine: automatica dal nome, un'illustrazione dell'app, una foto tua o nessuna.
+    Ritorna (modo, illustrazione scelta, foto caricata o None, se c'è già una foto salvata)."""
+    labels = {"auto": t("Automatica (dal nome)"), "preset": t("Scegli un'illustrazione"),
+              "custom": t("Una tua foto"), "none": t("Nessuna")}
+    modes = goal_images.MODES
+    cur = goal_images.mode_of(g or {})
+    img_mode = st.radio(t("Immagine"), modes, index=modes.index(cur), format_func=labels.get, horizontal=True,
+                        key=f"{k}_imgmode")
+    keys = list(goal_images.PRESETS)
+    preset = (g or {}).get("image_preset") if (g or {}).get("image_preset") in keys else None
+    photo, has_photo = None, bool(g) and images.exists(goal_images.image_key(g["id"]))
+    if img_mode == "auto":
+        auto = goal_images.auto_preset(name)
+        st.html(_banner(goal_images.preset_url(auto)))
+        st.caption(t("Scelta dal nome dell'obiettivo: «{p}». Cambia il nome o scegli tu l'illustrazione.",
+                     p=t(goal_images.PRESETS[auto])))
+    elif img_mode == "preset":
+        default = preset or goal_images.auto_preset(name)
+        preset = st.selectbox(t("Illustrazione"), keys, index=keys.index(default),
+                              format_func=lambda x: t(goal_images.PRESETS[x]), key=f"{k}_preset")
+        st.html(_banner(goal_images.preset_url(preset)))
+    elif img_mode == "custom":
+        photo = st.file_uploader(t("Foto (PNG, JPG o WEBP)"), type=images.FORMATS, key=f"{k}_photo",
+                                 help=t("Resta solo in questo computer, nel database dell'app. Le foto grandi "
+                                        "vengono rimpicciolite."))
+        if photo is not None:
+            try:
+                st.image(photo, width=360)
+            except Exception:
+                st.error(t("Non riesco a leggere l'immagine: usa un file PNG, JPG o WEBP."))
+        elif has_photo:
+            st.html(_banner(images.data_url(goal_images.image_key(g["id"]))))
+        else:
+            st.caption(t("Carica una foto per salvare l'obiettivo con la tua immagine."))
+    return img_mode, preset, photo, has_photo

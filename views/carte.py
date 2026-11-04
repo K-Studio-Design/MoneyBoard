@@ -11,12 +11,118 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from core import cards, db, enablebanking as eb, i18n
+import json
+
+from core import cards, db, enablebanking as eb, i18n, images
 from core.i18n import t
 from views import focus, style, ui
 
 VARIANTS = ["saldo", "blu", "spese", "entrate", "media", "grafite"]
 CREDIT = "Carta di credito"
+
+# aspetto delle carte: chiave → (nome, colore 1, colore 2, testo scuro)
+LOOKS = {
+    "auto": ("Automatico (colore della banca)", None, None, False),
+    "nero": ("Nero", "#141418", "#3B3D46", False),
+    "notte": ("Blu notte", "#0B2545", "#1F5C99", False),
+    "blu": ("Blu", "#1E40AF", "#3B82F6", False),
+    "viola": ("Viola", "#4C1D95", "#8B5CF6", False),
+    "corallo": ("Corallo", "#D9466A", "#F59E7A", False),
+    "rosa": ("Rosa", "#BE185D", "#F472B6", False),
+    "verde": ("Verde", "#065F46", "#10B981", False),
+    "petrolio": ("Verde acqua", "#0F766E", "#2DD4BF", False),
+    "oro": ("Oro", "#B7892F", "#F1D38A", True),
+    "argento": ("Argento", "#9AA5B8", "#E6EAF1", True),
+    "arcobaleno": ("Arcobaleno", "#7C5CFC", "#F0627E", False),
+}
+# colore di partenza per alcune banche (solo un colore, niente marchi); le altre ne ricevono uno fisso dal nome
+BANK_LOOKS = [("fineco", "notte"), ("revolut", "nero"), ("chase", "blu"), ("intesa", "verde"),
+              ("unicredit", "corallo"), ("n26", "petrolio"), ("hype", "rosa"), ("bper", "verde"),
+              ("poste", "oro"), ("wise", "petrolio"), ("bank of america", "blu"), ("wells fargo", "corallo")]
+FALLBACK_LOOKS = ["viola", "corallo", "petrolio", "blu", "rosa", "verde"]
+LOOKS_KEY = "card_looks"     # {chiave della carta: {"style": colore, "clean": bool}}
+# st.html toglie gli <svg> scritti nella pagina: chip e simbolo contactless vanno come immagini
+_CHIP_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 46"><rect x="1" y="1" width="58" height="44" '
+             'rx="8" fill="#E9C46A" stroke="#B88A2E" stroke-width="1.5"/><path d="M1 16 H20 M1 30 H20 M40 16 H59 '
+             'M40 30 H59 M20 1 V45 M40 1 V45 M20 23 H40" stroke="#B88A2E" stroke-width="1.5" fill="none"/></svg>')
+_NFC_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 30" fill="none" stroke="{c}" stroke-width="2.4" '
+            'stroke-linecap="round"><path d="M4 9 Q8 15 4 21"/><path d="M10 6 Q16 15 10 24"/>'
+            '<path d="M16 3 Q24 15 16 27"/></svg>')
+
+
+def _svg_img(svg: str, cls: str) -> str:
+    import base64
+    return (f'<img class="{cls}" alt="" src="data:image/svg+xml;base64,'
+            f'{base64.b64encode(svg.encode("utf-8")).decode("ascii")}">')
+
+
+CHIP = _svg_img(_CHIP_SVG, "chip")
+NFC = {False: _svg_img(_NFC_SVG.format(c="#ffffff"), "nfc"), True: _svg_img(_NFC_SVG.format(c="#1d1a2e"), "nfc")}
+
+
+def _looks() -> dict:
+    try:
+        v = json.loads(db.get_setting(LOOKS_KEY, "{}") or "{}")
+    except (ValueError, TypeError):
+        v = {}
+    return v if isinstance(v, dict) else {}
+
+
+def _save_look(key: str, **values) -> None:
+    allv = _looks()
+    cur = allv.get(key) if isinstance(allv.get(key), dict) else {}
+    cur.update(values)
+    allv[key] = cur
+    db.set_setting(LOOKS_KEY, json.dumps(allv, ensure_ascii=False))
+
+
+def _image_key(c: dict) -> str:
+    return f"card:{c['look']}"
+
+
+def _auto_look(c: dict) -> str:
+    if c.get("is_pocket"):
+        return "oro"
+    bank = str(c.get("account") or "").lower()
+    for word, look in BANK_LOOKS:
+        if word in bank:
+            return look
+    return FALLBACK_LOOKS[sum(map(ord, bank)) % len(FALLBACK_LOOKS)]
+
+
+def card_html(c: dict) -> str:
+    """La carta disegnata come una carta vera: colore (o immagine scelta), banca, ultime cifre, intestatario."""
+    cfg = _looks().get(c.get("look") or "", {})
+    key = cfg.get("style") if cfg.get("style") in LOOKS and cfg.get("style") != "auto" else _auto_look(c)
+    _n, c1, c2, ink = LOOKS[key]
+    img = images.data_url(_image_key(c)) if c.get("look") else None
+    cls = ["as-bcard"]
+    if ink and not img:
+        cls.append("ink")
+    style_attr = f"--c1:{c1};--c2:{c2}"
+    if img:
+        cls.append("img")
+        if cfg.get("clean"):
+            cls.append("clean")
+        style_attr += f";background-image:url({img})"
+    num_cls = "num"
+    if c.get("is_pocket"):
+        kind, number, num_cls = t("Pocket"), c.get("name") or "", "num txt"
+    elif c.get("is_account"):
+        iban = str(c.get("iban") or "").replace(" ", "")
+        kind = t("Conto")
+        number = f"IBAN •••• {iban[-4:]}" if len(iban) >= 4 else t("Conto {ccy}", ccy=c.get("ccy") or "")
+        num_cls = "num" if len(iban) >= 4 else "num txt"
+    else:
+        kind = t("Credito") if c.get("kind") in (CREDIT, t(CREDIT)) else ""
+        number = f"•••• •••• •••• {c['digits']}" if c.get("digits") else "•••• •••• •••• ••••"
+    holder = style.profile_name().upper()
+    right = (c.get("ccy") or "") if c.get("is_account") else (c.get("name") or "")
+    mid = (f'<div class="mid">{CHIP}{NFC["ink" in cls]}</div>' if not c.get("is_account") else '<div class="mid"></div>')
+    return (f'<div class="{" ".join(cls)}" style="{style.e(style_attr)}">'
+            f'<div class="top"><span>{style.e(c.get("account") or "")}</span><small>{style.e(kind)}</small></div>'
+            f'{mid}<div class="{num_cls}">{style.e(number)}</div>'
+            f'<div class="bot"><span>{style.e(holder)}</span><span>{style.e(right)}</span></div></div>')
 
 
 def _dd(iso) -> str:
@@ -55,7 +161,8 @@ def _card_list(tx: pd.DataFrame) -> list[dict]:
         if int(m.hidden or 0):
             continue
         rows = tx[(tx["account"] == m.account) & (tx["card"] == m.digits)] if not tx.empty else tx
-        out.append({"id": f"c|{m.account}|{m.digits}", "digits": m.digits, "account": m.account,
+        out.append({"id": f"c|{m.account}|{m.digits}", "look": f"c|{m.account}|{m.digits}", "digits": m.digits,
+                    "account": m.account,
                     "kind": m.kind or "", "name": m.name or "", "rows": rows, "balance": None, "balance_ccy": None,
                     "balance_date": None, "uid": None})
     for a in linked.to_dict("records") if not linked.empty else []:
@@ -80,6 +187,8 @@ def _card_list(tx: pd.DataFrame) -> list[dict]:
                       "name": a.get("product") or a.get("account_name") or "", "rows": rows}
             out.append(target)
         target["uid"] = a["uid"]
+        if not target.get("look"):
+            target["look"] = f"a|{target['account']}|{target.get('digits') or a.get('product') or ''}"
         if pd.notna(a.get("balance")):
             target.update(balance=float(a["balance"]), balance_ccy=a.get("balance_currency") or a.get("currency"),
                           balance_date=str(a.get("balance_date") or "")[:10])
@@ -134,8 +243,10 @@ def _card_list(tx: pd.DataFrame) -> list[dict]:
         has_bal = pd.notna(a.get("balance"))
         if not has_bal and rows.empty:
             continue
+        iban = str(a.get("iban") or "").strip()
         out.append({"id": f"k|{a['uid']}", "digits": "", "account": acc, "kind": "", "uid": a["uid"],
-                    "is_account": True, "ccy": ccy, "name": name, "rows": rows,
+                    "is_account": True, "ccy": ccy, "name": name, "rows": rows, "iban": iban,
+                    "look": f"k|{acc}|{ccy}|{iban[-4:] if iban else (a.get('account_name') or '')}",
                     "balance": float(a["balance"]) if has_bal else None, "balance_ccy": ccy or None,
                     "balance_date": str(a.get("balance_date") or "")[:10] if has_bal else None})
     out += _pocket_items(tx)
@@ -159,7 +270,8 @@ def _pocket_items(tx: pd.DataFrame) -> list[dict]:
             bal = forecast.account_balance(name, ccy, tx) if not tx.empty else None
         except Exception:
             bal = None
-        out.append({"id": f"p|{pid}", "digits": "", "account": p.get("bank") or name, "kind": "", "uid": None,
+        out.append({"id": f"p|{pid}", "look": f"p|{pid}", "digits": "", "account": p.get("bank") or name,
+                    "kind": "", "uid": None,
                     "is_account": True, "is_pocket": True, "pid": pid, "ccy": ccy, "name": name, "rows": rows,
                     "balance": bal, "balance_ccy": ccy or None, "balance_date": date.today().isoformat()})
     return out
@@ -217,22 +329,21 @@ def render() -> None:
         _hidden_box()
         return
 
-    grads = []
-    for i, c in enumerate(items):
+    shown = []
+    for c in items:
         month = _spent(c["rows"], som, today)
         bal = _balance(c)
-        sub = f"{c['account']} · {bal[2] if bal is not None else t('saldo non sincronizzato')}"
-        grads.append(dict(id=c["id"], label=title_of(c), sub=sub,
+        sub = f"{title_of(c)} · {bal[2] if bal is not None else t('saldo non sincronizzato')}"
+        shown.append(dict(id=c["id"], label=title_of(c), html=card_html(c), sub=sub,
                           value=ui.money(bal[0], bal[1]) if bal is not None else "–",
-                          foot=(t("Speso questo mese:"), ui.money(month, base)),
-                          variant=VARIANTS[i % len(VARIANTS)], pct=None))
+                          foot=(t("Speso questo mese:"), ui.money(month, base))))
     st.caption(t("Saldo sincronizzato dalla banca e, sotto, quanto hai speso questo mese. Clicca su una carta o "
-                 "su un conto per vedere i movimenti."))
-    sel = style.gradient_cards(grads, key="cards_grid")
+                 "su un conto per vedere i movimenti e per cambiarne l'aspetto."))
+    sel = style.bank_cards(shown, key="cards_grid")
     if sel:
         c = next((x for x in items if x["id"] == sel), None)
         if c:
-            st.dialog(ui.esc(title_of(c)), width="large")(_card_body)(c["id"])
+            st.dialog(ui.esc(title_of(c)), width="large", on_dismiss="rerun")(_card_body)(c["id"])
 
     rows = []
     for c in items:
@@ -280,6 +391,7 @@ def _card_body(card_id: str) -> None:
     if c is None:
         st.caption(t("Carta non trovata."))
         return
+    st.html(f'<div class="as-bcard-one">{card_html(c)}</div>')
     base = db.base_currency()
     today = date.today()
     som = today.replace(day=1)
@@ -335,6 +447,7 @@ def _card_body(card_id: str) -> None:
     else:
         _tx_section(rows, base, card_id)
 
+    _look_editor(c)
     st.subheader(t("Gestisci"))
     if card_id.startswith("c|"):
         _p, account, digits = card_id.split("|", 2)
@@ -361,6 +474,48 @@ def _card_body(card_id: str) -> None:
         st.caption(t("Conto collegato via Open Banking: il conto dell'app si sceglie in Collega banche."))
     else:
         st.caption(t("Carta collegata via Open Banking: il nome si cambia in Collega banche."))
+
+
+def _look_editor(c: dict) -> None:
+    """Colore della carta oppure un'immagine (per esempio il disegno della carta preso dall'app della banca)."""
+    if not c.get("look"):
+        return
+    st.subheader(t("Aspetto"))
+    key, ikey = c["look"], _image_key(c)
+    cfg = _looks().get(key, {})
+    opts = list(LOOKS)
+    cur = cfg.get("style") if cfg.get("style") in LOOKS else "auto"
+    has_img = images.exists(ikey)
+    c1, c2 = st.columns(2)
+    style_key = c1.selectbox(t("Colore"), opts, index=opts.index(cur), format_func=lambda k: t(LOOKS[k][0]),
+                             key=f"look_style_{c['id']}", disabled=has_img,
+                             help=t("Con un'immagine caricata vale l'immagine.") if has_img else None)
+    if style_key != cur:
+        _save_look(key, style=style_key)
+        st.rerun(scope="fragment")
+    up = c2.file_uploader(t("Immagine della carta"), type=images.FORMATS, key=f"look_up_{c['id']}",
+                          help=t("Per esempio il disegno della carta preso da uno screenshot dell'app della banca: "
+                                 "viene ritagliata nel formato di una carta e resta solo in questo computer, nel "
+                                 "database. Meglio un'immagine in cui non si vedono il numero completo e il codice "
+                                 "di sicurezza: l'app mostra già le ultime 4 cifre."))
+    if up is not None and st.button(t("Usa questa immagine"), key=f"look_upok_{c['id']}", icon=":material/image:",
+                                    type="primary"):
+        try:
+            images.save(ikey, up.getvalue(), "card")
+            st.rerun(scope="fragment")
+        except images.ImageError as e:
+            st.error(str(e))
+    if has_img:
+        clean = cfg.get("clean", False)
+        show = st.toggle(t("Scrivi banca, cifre e nome sopra l'immagine"), value=not clean,
+                         key=f"look_clean_{c['id']}",
+                         help=t("Spegnilo se l'immagine ha già tutto quello che serve."))
+        if show == clean:
+            _save_look(key, clean=not show)
+            st.rerun(scope="fragment")
+        if st.button(t("Togli l'immagine"), key=f"look_del_{c['id']}", icon=":material/hide_image:"):
+            images.delete(ikey)
+            st.rerun(scope="fragment")
 
 
 def _tx_section(rows: pd.DataFrame, base: str, card_id: str, cat: str | None = None) -> None:

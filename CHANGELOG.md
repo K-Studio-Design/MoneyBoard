@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0 (2026-11-03)
+
+- **Goal pictures**: every goal has an image on its card. By default the app picks one of 15 built-in illustrations
+  from the goal's name (emergency fund, vacation, trip, home, car, education, retirement, wedding, tech, gifts,
+  taxes, family, pets, health, savings); you can choose another one, upload your own photo or turn it off.
+- **Cards that look like cards**: in Cards, every card and account is drawn like a real card (bank, last digits,
+  name, chip). Choose its color, or upload the card design from your bank's app; the image is cropped to the shape
+  of a card and stays in your database.
+- Fixed: the progress ring on goals wasn't showing.
+
 ## 1.2.1 (2026-10-30)
 
 - **Revolut pockets**: Revolut doesn't share pockets with linked apps, so MoneyBoard follows them from the transfers

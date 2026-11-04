@@ -328,8 +328,10 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
 
 /* ---- obiettivi ---- */
 .as-goal {{ display: flex; gap: 1.1rem; align-items: center; }}
-.as-goal .ring {{ width: 92px; height: 92px; flex: 0 0 92px; }}
-.as-goal .ring text {{ font-size: 15px; font-weight: 800; fill: var(--as-ink); font-family: inherit; }}
+.as-goal .ring {{ width: 92px; height: 92px; flex: 0 0 92px; position: relative; }}
+.as-goal .ring img {{ width: 100%; height: 100%; display: block; }}
+.as-goal .ring span {{ position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.05rem;
+  font-weight: 800; color: var(--as-ink); }}
 .as-goal .info {{ min-width: 0; }}
 .as-goal .n {{ font-weight: 700; font-size: 1.05rem; }}
 .as-goal .v {{ font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; margin-top: .1rem; }}
@@ -337,6 +339,53 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
 .as-goal .m {{ color: var(--as-muted); font-size: .8rem; margin-top: .1rem; }}
 .as-goal .st {{ font-size: .8rem; font-weight: 600; margin-top: .3rem; color: var(--as-muted); }}
 .as-goal-plan {{ color: var(--as-muted); font-size: .86rem; margin: .8rem 0 .2rem 0; }}
+/* immagine dell'obiettivo (illustrazione dell'app o foto dell'utente) */
+.as-goal-img {{ height: 132px; margin: 0 0 1rem; border-radius: 16px; background-size: cover;
+  background-position: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10); }}
+.as-goal-img.big {{ height: 190px; margin-bottom: .9rem; }}
+
+/* ---- carte: come una carta vera ---- */
+.as-bcards {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.3rem 1.1rem;
+  margin-bottom: 1.4rem; }}
+.as-bitem {{ cursor: pointer; border-radius: 18px; outline: none; transition: transform .14s ease; }}
+.as-bitem:hover {{ transform: translateY(-3px); }}
+.as-bitem:focus-visible .as-bcard {{ outline: 3px solid var(--as-accent); outline-offset: 3px; }}
+.as-bcard {{ position: relative; overflow: hidden; aspect-ratio: 1.586; border-radius: 16px; color: #fff;
+  padding: 7% 7.5%; display: flex; flex-direction: column; justify-content: space-between;
+  background: linear-gradient(135deg, var(--c1), var(--c2)); background-size: cover; background-position: center;
+  box-shadow: 0 14px 30px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.22); container-type: inline-size; }}
+.as-bcard::before {{ content: ""; position: absolute; width: 95%; aspect-ratio: 1; right: -38%; top: -55%;
+  border-radius: 50%; background: rgba(255,255,255,0.09); pointer-events: none; }}
+.as-bcard::after {{ content: ""; position: absolute; width: 70%; aspect-ratio: 1; left: -30%; bottom: -62%;
+  border-radius: 50%; background: rgba(255,255,255,0.06); pointer-events: none; }}
+.as-bcard.ink {{ color: #1d1a2e; }}
+.as-bcard.img::before {{ display: none; }}
+.as-bcard.img::after {{ left: 0; top: 0; right: 0; bottom: 0; width: auto; aspect-ratio: auto; border-radius: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.28), rgba(0,0,0,0) 38%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.45)); }}
+.as-bcard.img.clean::after {{ display: none; }}
+.as-bcard > * {{ position: relative; z-index: 1; }}
+.as-bcard .top {{ display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem;
+  font-weight: 800; font-size: 6.4cqw; line-height: 1.1; letter-spacing: .01em; }}
+.as-bcard .top small {{ font-weight: 700; font-size: 3.6cqw; opacity: .85; text-transform: uppercase;
+  letter-spacing: .09em; white-space: nowrap; padding-top: .15em; }}
+.as-bcard .mid {{ display: flex; align-items: center; gap: 4cqw; }}
+.as-bcard .chip {{ width: 15cqw; height: auto; display: block; }}
+.as-bcard .nfc {{ width: 7cqw; height: auto; display: block; opacity: .9; }}
+.as-bcard .num {{ font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; font-size: 6.6cqw;
+  letter-spacing: .1em; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.25); }}
+.as-bcard.ink .num {{ text-shadow: none; }}
+.as-bcard .num.txt {{ font-family: inherit; letter-spacing: .01em; font-weight: 800; font-size: 6cqw;
+  overflow: hidden; text-overflow: ellipsis; }}
+.as-bcard .bot {{ display: flex; justify-content: space-between; align-items: flex-end; gap: .6rem; font-size: 3.9cqw;
+  text-transform: uppercase; letter-spacing: .08em; font-weight: 600; opacity: .95; }}
+.as-bcard .bot span {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+.as-bcard.img.clean > * {{ visibility: hidden; }}
+.as-bmeta {{ padding: .7rem .25rem 0; }}
+.as-bmeta .v {{ font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; }}
+.as-bmeta .s {{ color: var(--as-muted); font-size: .8rem; margin-top: .1rem; }}
+.as-bmeta .f {{ color: var(--as-muted); font-size: .8rem; margin-top: .2rem; }}
+.as-bmeta .f b {{ color: var(--as-ink); }}
+.as-bcard-one {{ max-width: 420px; margin: 0 auto 1.2rem; }}
 
 /* ---- avvisi ---- */
 .as-alert {{ display: grid; grid-template-columns: 2.4rem minmax(0, 1fr); gap: .8rem; align-items: start; }}
@@ -772,6 +821,48 @@ def gradient_cards(items: list[dict], key: str | None = None) -> str | None:
                      f'<div class="l">{e(it["label"])}</div>{sub}<div class="v">{e(it["value"])}</div>{foot}{prog}</div>')
     st.html(f'<div class="as-grads">{"".join(cells)}</div>')
     return None
+
+
+_bcards_component = None
+_BCARDS_JS = """
+export default function(component) {
+  const { data, setTriggerValue, parentElement } = component;
+  const old = parentElement.querySelector('.as-bcards');
+  if (old) old.remove();
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls;
+                                    if (text !== undefined) n.textContent = text; return n; };
+  const root = el('div', 'as-bcards');
+  for (const it of data.items) {
+    const c = el('div', 'as-bitem');
+    c.innerHTML = it.html;            // carta già pronta (testo protetto lato server)
+    const m = el('div', 'as-bmeta');
+    m.appendChild(el('div', 'v', it.value));
+    if (it.sub) m.appendChild(el('div', 's', it.sub));
+    if (it.foot) { const f = el('div', 'f', it.foot[0] + ' '); f.appendChild(el('b', '', it.foot[1])); m.appendChild(f); }
+    c.appendChild(m);
+    c.tabIndex = 0; c.setAttribute('role', 'button'); c.setAttribute('aria-label', data.detail + it.label);
+    const open = () => setTriggerValue('selected', it.id);
+    c.addEventListener('click', open);
+    c.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } });
+    root.appendChild(c);
+  }
+  parentElement.appendChild(root);
+}
+"""
+
+
+def bank_cards(items: list[dict], key: str) -> str | None:
+    """Carte disegnate come carte vere, cliccabili. items: dict(id, label, html = la carta (HTML già protetto),
+    value, sub, foot=(testo, valore)). Ritorna l'id della carta cliccata (una volta per clic)."""
+    global _bcards_component
+    if _bcards_component is None:
+        import streamlit.components.v2 as v2
+        _bcards_component = v2.component("as_bank_cards", js=_BCARDS_JS, isolate_styles=False)
+    data = [{"id": str(it["id"]), "label": it["label"], "html": it["html"], "value": it.get("value") or "",
+             "sub": it.get("sub") or "", "foot": list(it["foot"]) if it.get("foot") else None} for it in items]
+    res = _bcards_component(data={"items": data, "detail": t("Dettaglio: ")}, key=key,
+                            on_selected_change=lambda: None)
+    return getattr(res, "selected", None) if res is not None else None
 
 
 _grads_component = None

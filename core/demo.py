@@ -250,7 +250,7 @@ def seed(today: date | None = None, lang: str | None = None) -> int:
     db.init_db()
     with db.connect() as con:
         for t in ("transactions", "goal_moves", "goals", "security_trades", "instruments", "exchange_balances",
-                  "exchanges", "bank_accounts", "tx_links", "cards", "budgets", "shared", "people"):
+                  "exchanges", "bank_accounts", "tx_links", "cards", "budgets", "shared", "people", "images"):
             con.execute(f"DELETE FROM {t}")
         con.execute("DELETE FROM settings WHERE key NOT IN ('base_currency','auto_update_prices','eb_app_id',"
                     "'eb_redirect_url','colors_version','rules_version')")

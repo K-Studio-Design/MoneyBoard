@@ -4,7 +4,7 @@
 Track spending, income, subscriptions, savings goals and investments in a clean dashboard. No cloud account,
 no servers: all your data stays in a local database on your own machine.
 
-*Made by **K Studio Design** in Italy · version 1.2.1 · free for personal and noncommercial use
+*Made by **K Studio Design** in Italy · version 1.3.0 · free for personal and noncommercial use
 ([PolyForm Noncommercial 1.0.0](LICENSE.md)) · [Leggi in italiano](README.it.md)*
 
 **▶ [Try the live demo](https://moneyboard-demo.streamlit.app)** — no install, no sign-up, made-up data.
@@ -38,6 +38,9 @@ no servers: all your data stays in a local database on your own machine.
 - **Email (optional)**: a monthly summary on the 1st and reminders of upcoming charges, sent through your own email
   account (Gmail, iCloud, Yahoo or any SMTP server).
 - **Goals**: savings goals with deadlines, from manual deposits, an account balance or your savings since a date.
+  Each goal has a picture: an illustration picked from its name, one you choose, or your own photo.
+- **Cards**: your cards and accounts drawn like real cards, with balance and monthly spending. Pick a color or
+  upload the card design from your bank's app.
 - **Investments**: securities by ISIN with live prices (Yahoo Finance), gains and losses, dividends and
   taxes read from your statements, plus read-only balances from crypto exchanges.
 - **Currencies**: multi-currency accounts converted at ECB rates, plus a currency converter.

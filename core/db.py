@@ -281,6 +281,14 @@ CREATE TABLE IF NOT EXISTS goal_moves (
     amount REAL NOT NULL,
     note TEXT DEFAULT ''
 );
+
+-- immagini scelte dall'utente (foto di un obiettivo «goal:<id>», aspetto di una carta «card:<chiave>»)
+CREATE TABLE IF NOT EXISTS images (
+    key TEXT PRIMARY KEY,
+    mime TEXT NOT NULL,
+    data BLOB NOT NULL,
+    updated TEXT
+);
 """
 
 SHARED_CATEGORY = "Spese condivise"   # neutra: la parte di una spesa che ti verrà restituita
@@ -297,7 +305,9 @@ DEFAULT_SETTINGS = {
 _EXTRA_COLUMNS = {
     # split_of: movimento diviso da cui proviene questa parte; split_total: importo originale del movimento diviso
     "transactions": {"card": "TEXT", "bank_uid": "TEXT", "split_of": "INTEGER", "split_total": "REAL"},
-    "categories": {"name_en": "TEXT"},       # nome mostrato quando l'app è in inglese (vuoto = come il nome)
+    "categories": {"name_en": "TEXT"},
+    # immagine dell'obiettivo: image_mode auto | preset | custom | none, image_preset = illustrazione scelta
+    "goals": {"image_mode": "TEXT", "image_preset": "TEXT"},       # nome mostrato quando l'app è in inglese (vuoto = come il nome)
     "bank_accounts": {"cash_account_type": "TEXT", "product": "TEXT", "balance": "REAL", "balance_currency": "TEXT",
                       "balance_type": "TEXT", "balance_date": "TEXT", "balances_json": "TEXT",
                       # ident_hash: id del conto stabile tra un consenso e l'altro (Enable Banking);
@@ -842,7 +852,7 @@ def goals_df(include_archived: bool = False) -> pd.DataFrame:
 
 def save_goal(fields: dict, goal_id: int | None = None) -> int:
     cols = ["name", "target", "deadline", "start_date", "mode", "account", "account_ccy", "balance_offset",
-            "initial", "color", "archived"]
+            "initial", "color", "archived", "image_mode", "image_preset"]
     data = {k: fields[k] for k in cols if k in fields}
     with connect() as con:
         if goal_id is None:
@@ -857,6 +867,7 @@ def delete_goal(goal_id: int) -> None:
     with connect() as con:
         con.execute("DELETE FROM goal_moves WHERE goal_id=?", (goal_id,))
         con.execute("DELETE FROM goals WHERE id=?", (goal_id,))
+        con.execute("DELETE FROM images WHERE key=?", (f"goal:{int(goal_id)}",))
 
 
 def goal_moves_df(goal_id: int) -> pd.DataFrame:
