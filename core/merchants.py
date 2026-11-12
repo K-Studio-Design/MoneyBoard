@@ -1,5 +1,6 @@
 """Riconoscimento dell'esercente (o della persona) dalla descrizione di un movimento."""
 import re
+from functools import lru_cache
 
 # prefissi che non identificano l'esercente (intermediari di pagamento, tipo di operazione)
 _GENERIC = ["pagamento a favore di", "pagamento da parte di", "pagamento da", "bonifico istantaneo",
@@ -16,6 +17,7 @@ _TRANSFER_PREFIX = ("pagamento a favore di", "pagamento da parte di", "pagamento
                     "to ", "from ")
 
 
+@lru_cache(maxsize=16384)   # funzione pura: le stesse descrizioni tornano a ogni calcolo
 def merchant_key(description: str) -> str:
     """Chiave che raggruppa le descrizioni dello stesso esercente o della stessa persona.
     Es.: 'SEGAFREDO MILANO' e 'Segafredo' -> 'segafredo'; 'Netflix.com Los Gatos' -> 'netflix'."""

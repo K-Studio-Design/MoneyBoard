@@ -42,21 +42,22 @@ def extract(df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame(columns=["date", "tipo", "titolo", "quantita", "importo", "id", "account"])
     rows = []
     val = _base_val(df)
-    for (_, r), v in zip(df.iterrows(), val):
-        desc = str(r["description"] or "")
+    # colonna per colonna (molto più veloce di iterrows, stessi valori)
+    for raw, v, day, rid, acc in zip(df["description"], val, df["date"], df["id"], df["account"]):
+        desc = str(raw or "")
         if pd.isna(v):
             continue
         m = RE_DIV.search(desc)
         if m:
             tipo = "ritenuta" if (v < 0 or re.search(r"\brit", desc, re.I)) else "dividendo"
-            rows.append({"date": r["date"], "tipo": tipo, "titolo": m.group(2).strip().upper(),
-                         "quantita": _qty(m.group(1)), "importo": float(v), "id": int(r["id"]), "account": r["account"]})
+            rows.append({"date": day, "tipo": tipo, "titolo": m.group(2).strip().upper(),
+                         "quantita": _qty(m.group(1)), "importo": float(v), "id": int(rid), "account": acc})
         elif RE_BOLLO.search(desc):
-            rows.append({"date": r["date"], "tipo": "bollo", "titolo": "", "quantita": None, "importo": float(v),
-                         "id": int(r["id"]), "account": r["account"]})
+            rows.append({"date": day, "tipo": "bollo", "titolo": "", "quantita": None, "importo": float(v),
+                         "id": int(rid), "account": acc})
         elif RE_CGT.search(desc):
-            rows.append({"date": r["date"], "tipo": "capital gain", "titolo": "", "quantita": None,
-                         "importo": float(v), "id": int(r["id"]), "account": r["account"]})
+            rows.append({"date": day, "tipo": "capital gain", "titolo": "", "quantita": None,
+                         "importo": float(v), "id": int(rid), "account": acc})
     out = pd.DataFrame(rows)
     if not out.empty:
         out["date"] = pd.to_datetime(out["date"])

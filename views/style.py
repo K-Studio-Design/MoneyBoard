@@ -433,7 +433,16 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
     flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; }}
   [data-testid="stHorizontalBlock"]:has(.as-alert) > [data-testid="stColumn"]:first-child {{ flex: 1 1 100% !important; }}
 }}
-@media (prefers-reduced-motion: reduce) {{ .as-click .as-row, .as-pick > div {{ transition: none; }} }}
+/* durante un aggiornamento la pagina non «lampeggia»: si attenua appena, e solo se l'attesa è lunga */
+[data-stale="true"] {{ opacity: .82 !important; transition: opacity .3s ease-in 1.2s !important; }}
+/* il browser anima solo spostamenti e trasparenze (niente ricalcolo dell'impaginazione) */
+.as-grads-click .as-grad, .as-kpi.click, .as-bitem, .as-date-click {{ backface-visibility: hidden; }}
+@media (prefers-reduced-motion: reduce) {{
+  .as-click .as-row, .as-pick > div, .as-grads-click .as-grad, .as-kpi.click, .as-bitem, .as-date-click,
+  .as-table tbody tr {{ transition: none !important; }}
+  .as-grads-click .as-grad:hover, .as-kpi.click:hover, .as-bitem:hover, .as-date-click:hover {{ transform: none !important; }}
+  [data-stale="true"] {{ transition: none !important; }}
+}}
 </style>"""
     st.html(css)
     if mode == "glass":
@@ -448,8 +457,9 @@ _GLASS = ("background: linear-gradient(160deg, rgba(255,255,255,0.13) 0%, rgba(2
           "border: 1px solid rgba(255,255,255,0.18) !important; box-shadow: var(--as-shadow) !important;")
 GLASS_CSS = f"""
 <style>
-.stApp, [data-testid="stAppViewContainer"] {{ background: var(--as-bg) !important; background-attachment: fixed !important;
-  color: var(--as-ink); }}
+.stApp {{ background: #0F1230 !important; color: var(--as-ink); isolation: isolate; }}
+[data-testid="stAppViewContainer"] {{ background: transparent !important; color: var(--as-ink); }}
+.stApp::before {{ content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--as-bg); }}
 [data-testid="stMain"], [data-testid="stBottomBlockContainer"] {{ background: transparent !important; }}
 [data-testid="stSidebar"] {{ {_GLASS} border-width: 0 1px 0 0 !important; }}
 [data-testid="stSidebar"] > div {{ background: transparent !important; }}
@@ -487,12 +497,10 @@ div[role="dialog"] {{ background: linear-gradient(160deg, rgba(40,44,96,0.86), r
 [data-baseweb="select"] > div, [data-baseweb="input"], [data-baseweb="base-input"], [data-testid="stDateInputField"],
 textarea, [data-testid="stNumberInputContainer"] {{ background: rgba(255,255,255,0.09) !important;
   border-color: rgba(255,255,255,0.20) !important; }}
-[data-baseweb="popover"] ul, [data-baseweb="menu"] {{ background: rgba(26,31,69,0.92) !important;
-  -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); }}
+[data-baseweb="popover"] ul, [data-baseweb="menu"] {{ background: rgba(26,31,69,0.95) !important; }}
 [data-testid="stBaseButton-secondary"], [data-testid="stBaseButton-pills"], [data-testid="stBaseButton-pillsActive"],
 [data-testid="stBaseButton-segmented_control"], [data-testid="stBaseButton-segmented_controlActive"] {{
-  background: rgba(255,255,255,0.10) !important; border-color: rgba(255,255,255,0.22) !important;
-  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }}
+  background: rgba(255,255,255,0.10) !important; border-color: rgba(255,255,255,0.22) !important; }}
 [data-testid="stBaseButton-pillsActive"], [data-testid="stBaseButton-segmented_controlActive"] {{
   background: rgba(255,255,255,0.24) !important; }}
 /* pillole e controlli segmentati (in questa versione non hanno data-testid ma data-variant) */

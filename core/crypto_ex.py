@@ -1,6 +1,8 @@
 """Collegamento agli exchange di criptovalute tramite ccxt (solo lettura dei saldi)."""
 from __future__ import annotations
 
+from functools import lru_cache
+
 import pandas as pd
 
 from core import db, fx
@@ -12,13 +14,19 @@ STABLE_USD = {"USDT", "USDC", "BUSD", "FDUSD", "DAI", "TUSD", "USDP"}
 CCXT_FIAT = {"ZEUR": "EUR", "ZUSD": "USD", "ZGBP": "GBP", "XXBT": "BTC", "XBT": "BTC", "XETH": "ETH"}
 
 
-def available_exchanges() -> list[str]:
+@lru_cache(maxsize=1)      # l'elenco non cambia mentre l'app è aperta
+def _exchanges() -> tuple[str, ...]:
     import ccxt
 
     present = set(ccxt.exchanges)
-    return [e for e in POPULAR if e in present] + sorted(present - set(POPULAR))
+    return tuple([e for e in POPULAR if e in present] + sorted(present - set(POPULAR)))
 
 
+def available_exchanges() -> list[str]:
+    return list(_exchanges())
+
+
+@lru_cache(maxsize=256)
 def needs_password(exchange_id: str) -> bool:
     import ccxt
 

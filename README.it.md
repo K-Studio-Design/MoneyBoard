@@ -5,7 +5,7 @@
 App per gestire spese, entrate, abbonamenti, obiettivi di risparmio e investimenti, con i dati salvati **solo sul
 tuo computer** (nessun server, nessun account online). Interfaccia in italiano e in inglese.
 
-Fatta da **K Studio Design** in Italia · versione 1.3.0 · licenza
+Fatta da **K Studio Design** in Italia · versione 1.3.1 · licenza
 [PolyForm Noncommercial 1.0.0](LICENSE.md): gratuita per uso personale e non commerciale (vedi sotto).
 
 **▶ [Prova la demo online](https://moneyboard-demo.streamlit.app)**: niente installazione, niente registrazione, dati inventati (in inglese).

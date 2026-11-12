@@ -6,6 +6,7 @@ I tassi vengono salvati in cache nel database.
 """
 from __future__ import annotations
 
+import time
 from datetime import date, datetime, timedelta
 
 import requests
@@ -79,6 +80,13 @@ def _yahoo_rate(d: date, base: str, quote: str) -> float:
     return float(hist["Close"].dropna().iloc[-1])
 
 
+# cambio di oggi tenuto in memoria per qualche minuto: la pagina si riesegue a ogni clic e non serve
+# richiederlo ogni volta (la BCE lo aggiorna una volta al giorno)
+_TODAY_TTL = 600.0
+_FALLBACK_TTL = 120.0      # se la rete non risponde: si riprova dopo un paio di minuti, non a ogni clic
+_today_rates: dict = {}
+
+
 def get_rate(base: str, quote: str, on=None) -> float:
     """Quanti `quote` vale 1 `base` alla data `on` (default oggi).
     Per date senza quotazione (weekend/festivi) usa l'ultimo giorno lavorativo precedente."""
@@ -89,6 +97,12 @@ def get_rate(base: str, quote: str, on=None) -> float:
     if d > date.today():
         d = date.today()
     is_today = d == date.today()
+    if is_today:
+        hit = _today_rates.get((base, quote, d))
+        if hit is not None and time.monotonic() < hit[0]:
+            if isinstance(hit[1], FxError):
+                raise hit[1]       # appena fallito (rete assente): non si riprova a ogni clic
+            return hit[1]
 
     if not is_today:
         cached = _cache_get(d, base, quote)
@@ -120,10 +134,17 @@ def get_rate(base: str, quote: str, on=None) -> float:
                 (base, quote, d.isoformat()),
             ).fetchone()
         if row:
+            if is_today:
+                _today_rates[(base, quote, d)] = (time.monotonic() + _FALLBACK_TTL, float(row["rate"]))
             return float(row["rate"])
-        raise FxError(i18n.t("Impossibile ottenere il cambio {pair} al {d}: ", pair=f"{base}/{quote}", d=d)
+        err = FxError(i18n.t("Impossibile ottenere il cambio {pair} al {d}: ", pair=f"{base}/{quote}", d=d)
                       + " | ".join(errors))
+        if is_today:
+            _today_rates[(base, quote, d)] = (time.monotonic() + _FALLBACK_TTL, err)
+        raise err
     _cache_put(d, base, quote, rate)
+    if is_today:
+        _today_rates[(base, quote, d)] = (time.monotonic() + _TODAY_TTL, rate)
     return rate
 
 
@@ -133,6 +154,18 @@ def prefetch_range(base: str, quote: str, start, end) -> None:
     if base == quote or base in CRYPTO or quote in CRYPTO:
         return
     s, e = _to_date(start), min(_to_date(end), date.today())
+    if s > e:
+        return
+    # tassi già salvati per tutti i giorni (salvo al più i primi giorni festivi del periodo): niente rete
+    with db.connect() as con:
+        have = {r[0] for r in con.execute(
+            "SELECT date FROM fx_cache WHERE base=? AND quote=? AND date BETWEEN ? AND ?",
+            (base, quote, s.isoformat(), e.isoformat()))}
+    if have:
+        missing = [d for d in (s + timedelta(days=i) for i in range((e - s).days + 1)) if d.isoformat() not in have]
+        first = min(have)
+        if all(d.isoformat() < first for d in missing) and len(missing) <= 4:
+            return
     try:
         data = _frankfurter(f"{s.isoformat()}..{e.isoformat()}", {"base": base, "symbols": quote})
     except Exception:
@@ -144,10 +177,11 @@ def prefetch_range(base: str, quote: str, start, end) -> None:
             known[ds] = float(vals[quote])
     if not known:
         return
-    # riempie weekend e festivi con l'ultimo tasso disponibile
+    # riempie weekend e festivi con l'ultimo tasso disponibile (tutto in una sola scrittura)
     cur = s
     last = None
     first_key = min(known)
+    rows = []
     while cur <= e:
         k = cur.isoformat()
         if k in known:
@@ -156,8 +190,11 @@ def prefetch_range(base: str, quote: str, start, end) -> None:
             cur += timedelta(days=1)
             continue
         if last is not None:
-            _cache_put(cur, base, quote, last)
+            rows.append((k, base, quote, float(last)))
         cur += timedelta(days=1)
+    if rows:
+        with db.connect() as con:
+            con.executemany("INSERT OR REPLACE INTO fx_cache(date, base, quote, rate) VALUES (?,?,?,?)", rows)
 
 
 def convert(amount: float, base: str, quote: str, on=None) -> tuple[float, float]:

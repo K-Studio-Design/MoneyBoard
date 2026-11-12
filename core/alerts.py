@@ -77,6 +77,7 @@ def compute(df: pd.DataFrame, series=None, today: date | None = None, horizon_da
     out: list[Alert] = []
     if df.empty:
         return out
+    df = db.plain_strings(df)   # stessi valori, calcolo molto più veloce
     today_ts = pd.Timestamp(today or date.today())
     since = today_ts - pd.Timedelta(days=horizon_days)
     base = db.base_currency()

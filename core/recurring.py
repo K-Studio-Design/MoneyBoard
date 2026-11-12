@@ -492,6 +492,7 @@ def detect(df: pd.DataFrame | None = None, today: date | None = None, rules: dic
         df = db.transactions_df()
     if df.empty:
         return []
+    df = db.plain_strings(df)   # stessi valori, calcolo molto più veloce
     today = pd.Timestamp(today or date.today())
     base = db.base_currency()
     d = df[df["kind"].isin(["uscita", "entrata"])].copy()

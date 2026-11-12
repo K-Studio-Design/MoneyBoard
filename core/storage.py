@@ -317,4 +317,5 @@ def restore_backup(path: Path) -> Path:
     safety = backup_dir() / f"spese_prima_del_ripristino_{datetime.now():%Y-%m-%d_%H%M%S}.db"
     _copy_sqlite(current, safety)
     _copy_sqlite(path, current)
+    db.invalidate_cache()   # database sostituito: si rilegge tutto
     return safety

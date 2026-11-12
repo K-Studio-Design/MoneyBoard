@@ -292,10 +292,22 @@ def _series_cached(signature: str, accounts: tuple[str, ...], today: date, rules
     return recurring.detect(df, today=today, rules=json.loads(rules_json or "{}"))
 
 
+def _accounts_key() -> tuple[str, ...]:
+    """Conti scelti nella barra laterale, per le cache: tutti i conti (o nessuna scelta ancora) = ().
+    Così il calcolo fatto prima che la barra laterale sia pronta vale anche dopo, e non si rifà."""
+    chosen = sorted(set(selected_accounts()))
+    if not chosen:
+        return ()
+    with db.connect() as con:
+        every = {r[0] for r in con.execute(
+            "SELECT DISTINCT account FROM transactions WHERE account IS NOT NULL AND account <> ''")}
+    return () if every <= set(chosen) else tuple(chosen)
+
+
 def recurring_series(include_hidden: bool = False):
     """Serie ricorrenti dei conti selezionati nella barra laterale (tutte le valute)."""
     from core import recurring
-    out = _series_cached(db.data_signature(), tuple(sorted(selected_accounts())), date.today(), _rules_json())
+    out = _series_cached(db.data_signature(), _accounts_key(), date.today(), _rules_json())
     return recurring.not_deleted(out) if include_hidden else recurring.visible(out)
 
 
@@ -317,7 +329,7 @@ def _alerts_cached(signature: str, accounts: tuple[str, ...], today: date, hidde
 def active_alerts(include_dismissed: bool = False):
     """Avvisi per i conti selezionati nella barra laterale (esclusi quelli ignorati)."""
     from core import alerts, budgets, notify, recurring
-    out = _alerts_cached(db.data_signature(), tuple(sorted(selected_accounts())), date.today(),
+    out = _alerts_cached(db.data_signature(), _accounts_key(), date.today(),
                          tuple(sorted(recurring.hidden() | recurring.deleted())),
                          db.get_setting(recurring.NAMES_KEY, "") or "", _rules_json(), i18n.lang(),
                          budgets.signature(), notify.reminder_days())

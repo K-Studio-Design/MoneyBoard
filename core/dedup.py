@@ -99,6 +99,7 @@ def run(mapping: dict[str, str] | None = None, apply: bool = False) -> dict:
         except Exception:
             con.rollback()
             raise
+    db.invalidate_cache()   # modifiche fatte con una connessione propria: si rileggono i dati
     return report
 
 

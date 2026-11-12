@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sqlite3
+import time
 from contextlib import contextmanager
 from datetime import datetime
 from functools import lru_cache
@@ -103,8 +104,37 @@ def db_path() -> Path:
     return get_data_dir() / "spese.db"
 
 
+# ---------------------------------------------------------------- letture ripetute tenute in memoria
+# In una sola esecuzione della pagina le impostazioni si leggono decine di volte e i movimenti più volte: si
+# tengono in memoria per pochi secondi. Ogni scrittura fatta dall'app (tramite connect()) le fa rileggere subito;
+# il limite di tempo copre le modifiche fatte da fuori (un altro programma, un file sostituito a mano).
+_CACHE_TTL = 3.0
+_write_gen = 0          # aumenta a ogni scrittura fatta tramite connect()
+_read_cache: dict = {}  # (cartella dati, cosa) -> (generazione, istante, valore)
+
+
+def invalidate_cache() -> None:
+    """Da chiamare dopo modifiche al database fatte senza connect() (es. un ripristino da backup)."""
+    global _write_gen
+    _write_gen += 1
+    _read_cache.clear()
+
+
+def _cached(what: str, load):
+    key = (str(db_path()), what)
+    gen = _write_gen                      # letta prima: una scrittura nel frattempo invalida il valore
+    hit = _read_cache.get(key)
+    now = time.monotonic()
+    if hit is not None and hit[0] == gen and now - hit[1] < _CACHE_TTL:
+        return hit[2]
+    value = load()
+    _read_cache[key] = (gen, now, value)
+    return value
+
+
 @contextmanager
 def connect():
+    global _write_gen
     con = sqlite3.connect(db_path(), timeout=30)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
@@ -112,7 +142,12 @@ def connect():
         yield con
         con.commit()
     finally:
-        con.close()
+        try:
+            if con.total_changes:
+                _write_gen += 1
+                _read_cache.clear()
+        finally:
+            con.close()
 
 
 SCHEMA = """
@@ -392,10 +427,16 @@ def init_db() -> None:
 
 
 # ---------------------------------------------------------------- settings
+def _all_settings() -> dict:
+    def load():
+        with connect() as con:
+            return {r["key"]: r["value"] for r in con.execute("SELECT key, value FROM settings")}
+    return _cached("settings", load)
+
+
 def get_setting(key: str, default: str | None = None) -> str | None:
-    with connect() as con:
-        row = con.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
-    return row["value"] if row else default
+    values = _all_settings()
+    return values[key] if key in values else default
 
 
 def set_setting(key: str, value: str) -> None:
@@ -655,7 +696,7 @@ def insert_transactions(rows: list[dict], match_sources: bool = True) -> tuple[i
     return inserted, skipped
 
 
-def transactions_df() -> pd.DataFrame:
+def _load_transactions() -> pd.DataFrame:
     with connect() as con:
         df = pd.read_sql_query(
             """SELECT t.*, COALESCE(c.kind, CASE WHEN t.amount < 0 THEN 'uscita' ELSE 'entrata' END) AS kind,
@@ -666,6 +707,19 @@ def transactions_df() -> pd.DataFrame:
         )
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     return df
+
+
+def transactions_df() -> pd.DataFrame:
+    """Tutti i movimenti (con tipo, icona e colore della categoria). Ogni chiamata riceve una copia sua."""
+    return _cached("transactions", _load_transactions).copy()
+
+
+def plain_strings(df: pd.DataFrame) -> pd.DataFrame:
+    """Le colonne di testo come normali oggetti Python: per i calcoli che scorrono i movimenti a gruppi
+    (ricorrenze, avvisi) sono molto più veloci. I valori restano gli stessi."""
+    cols = {c: object for c in df.columns
+            if pd.api.types.is_string_dtype(df[c]) and not pd.api.types.is_object_dtype(df[c])}
+    return df.astype(cols) if cols else df
 
 
 def update_transaction(tx_id: int, **fields) -> None:

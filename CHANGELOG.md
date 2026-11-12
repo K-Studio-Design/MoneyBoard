@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.1 (2026-11-12)
+
+Faster and smoother, with nothing removed:
+
+- Pages open faster: settings and transactions are read from the database once per page instead of dozens of
+  times (about 85% fewer database opens), and recurring payments and alerts are computed about twice as fast.
+- The first page after signing in no longer computes alerts twice.
+- Exchange rates: today's rate is kept for a few minutes instead of being downloaded at every click, and the
+  US taxes page no longer downloads rates it already has.
+- Smoother scrolling with the Liquid Glass theme (the colored background is drawn once instead of at every
+  scroll, and small buttons no longer blur what's behind them).
+- No more "fading" of the page at every click: it dims slightly only when an update takes long.
+- Respects the system setting to reduce motion.
+
 ## 1.3.0 (2026-11-03)
 
 - **Goal pictures**: every goal has an image on its card. By default the app picks one of 15 built-in illustrations
