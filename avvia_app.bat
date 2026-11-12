@@ -39,5 +39,12 @@ if errorlevel 1 (
     if not errorlevel 1 copy /y requirements.txt "%VENV%\requirements.installati.txt" >nul
 )
 
-"%VENV%\Scripts\python.exe" -m streamlit run app.py --server.headless false
+REM Di base l'app si apre solo da questo PC. Se nell'app hai attivato "Accesso dagli altri dispositivi
+REM della rete" (Impostazioni), nella cartella dei dati c'e' il file accesso_rete.on e l'app si apre a tutta la rete.
+set "MBROOT=%USERPROFILE%\AppSpese_dati"
+if defined APP_SPESE_DATA set "MBROOT=%APP_SPESE_DATA%"
+set "MBADDR=localhost"
+if exist "%MBROOT%\accesso_rete.on" set "MBADDR=0.0.0.0"
+
+"%VENV%\Scripts\python.exe" -m streamlit run app.py --server.headless false --server.address %MBADDR%
 pause

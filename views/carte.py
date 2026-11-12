@@ -310,7 +310,7 @@ def _spent(rows: pd.DataFrame, start: date, end: date) -> float:
 
 
 def render() -> None:
-    style.header(t("Carte"), t("Le tue carte, il saldo sincronizzato dalla banca e le spese fatte con ognuna"))
+    style.header(t("Carte e conti"), t("Le tue carte, il saldo sincronizzato dalla banca e le spese fatte con ognuna"))
     tx = ui.prepared_transactions(apply_view=False)
     if not tx.empty and "card" not in tx.columns:
         tx["card"] = None
@@ -335,7 +335,7 @@ def render() -> None:
         bal = _balance(c)
         sub = f"{title_of(c)} · {bal[2] if bal is not None else t('saldo non sincronizzato')}"
         shown.append(dict(id=c["id"], label=title_of(c), html=card_html(c), sub=sub,
-                          value=ui.money(bal[0], bal[1]) if bal is not None else "–",
+                          value=ui.money(bal[0], bal[1]) if bal is not None else "",
                           foot=(t("Speso questo mese:"), ui.money(month, base))))
     st.caption(t("Saldo sincronizzato dalla banca e, sotto, quanto hai speso questo mese. Clicca su una carta o "
                  "su un conto per vedere i movimenti e per cambiarne l'aspetto."))

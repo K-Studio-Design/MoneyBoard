@@ -16,14 +16,15 @@ def _d(d) -> str:
     return f"{wd} {i18n.day_month(d)}" if i18n.is_en() else f"{wd.lower()} {i18n.day_month(d)}"
 
 
-def card() -> None:
+def card(built=None) -> None:
+    """built: il risultato di _build() se già calcolato (la Panoramica lo usa anche per il saldo in alto)."""
     base = db.base_currency()
     with style.card("previsione"):
         st.subheader(t("Previsione a fine mese"))
         if ui.display_ccy() != base:
             st.caption(t("Disponibile con la valuta «Tutte, convertite in {base}» (filtro nella barra laterale).", base=base))
             return
-        built = _build()
+        built = built if built is not None else _build()
         if built is None:
             st.caption(t("Servono dei movimenti per fare una previsione."))
             return
@@ -99,6 +100,11 @@ def _build():
     if accs:
         tx = tx[tx["account"].isin(accs)]
     return forecast.build(df, tx, ui.recurring_series(), accounts=accs or None), tx
+
+
+def open_now() -> None:
+    """Finestra con il saldo di ogni conto (la stessa del riquadro «Saldo dei conti oggi»)."""
+    st.dialog(t("Saldo dei conti oggi"), width="large")(_now_body)()
 
 
 def _now_body() -> None:

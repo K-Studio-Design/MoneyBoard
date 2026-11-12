@@ -54,7 +54,7 @@ def _rows(series: list[recurring.Series], colors: dict, names: dict, base: str, 
 
 
 def render():
-    style.header(t("Abbonamenti"), t("Pagamenti e accrediti che si ripetono, trovati in automatico nei movimenti"))
+    style.header(t("Ricorrenti"), t("Pagamenti e accrediti che si ripetono, trovati in automatico nei movimenti"))
     base = db.base_currency()
     all_series = ui.recurring_series(include_hidden=True)
     hidden = recurring.hidden()

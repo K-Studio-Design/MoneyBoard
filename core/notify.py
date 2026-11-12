@@ -49,18 +49,27 @@ def config() -> dict:
     except (ValueError, TypeError):
         c = {}
     c = c if isinstance(c, dict) else {}
+    from core import secretbox
+    raw_pwd = str(c.get("password") or "")
     out = {"enabled": bool(c.get("enabled")), "host": str(c.get("host") or ""), "port": int(c.get("port") or 587),
            "security": c.get("security") if c.get("security") in SECURITY else "starttls",
-           "user": str(c.get("user") or ""), "password": str(c.get("password") or ""),
+           "user": str(c.get("user") or ""), "password": secretbox.unseal(raw_pwd),
            "sender": str(c.get("sender") or ""), "to": str(c.get("to") or ""),
            "monthly": c.get("monthly", True) is not False, "reminders": c.get("reminders", True) is not False}
+    if raw_pwd and not secretbox.is_sealed(raw_pwd):
+        # password salvata in chiaro da una versione precedente: da ora resta cifrata
+        try:
+            db.set_setting(CFG_KEY, json.dumps(dict(c, password=secretbox.seal(raw_pwd))))
+        except Exception:
+            pass
     return out
 
 
 def save_config(cfg: dict) -> None:
+    from core import secretbox
     old = config()
     new = dict(old, **cfg)
-    db.set_setting(CFG_KEY, json.dumps(new))
+    db.set_setting(CFG_KEY, json.dumps(dict(new, password=secretbox.seal(new.get("password")))))
     if new["enabled"] and new["monthly"] and not (old["enabled"] and old["monthly"]):
         # appena attivato: il primo riepilogo arriva a inizio del prossimo mese (non quello di un mese già passato)
         db.set_setting(MONTHLY_LAST, str(pd.Period(date.today(), freq="M") - 1))

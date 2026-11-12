@@ -76,7 +76,12 @@ def render_tab() -> None:
     if demo_mode.enabled():
         st.caption(t("Nella demo online cartelle e backup non si possono cambiare: scarica l'app per usarli."))
         return
-    if db.is_admin() and os.environ.get("APP_SPESE_DATA"):
+    admin = db.is_admin()
+    if not admin:
+        st.caption(t("Per sicurezza le cartelle di questo utente (database, estratti e backup) sono quelle preparate "
+                     "dall'app e non si possono cambiare. Per avere una copia dei tuoi dati usa «Scarica una copia del "
+                     "database» qui sotto."))
+    elif os.environ.get("APP_SPESE_DATA"):
         st.info(t("La cartella è fissata dalla variabile d'ambiente APP_SPESE_DATA: per cambiarla da qui, toglila."))
     else:
         new_dir = _folder_input(t("Cartella del database"), "set_db_dir", path.parent,
@@ -125,14 +130,18 @@ def render_tab() -> None:
     # ---------------------------------------------------------------- import automatico
     st.subheader(t("Estratti da importare"))
     imp = storage.import_dir()
-    new_imp = _folder_input(t("Cartella degli estratti"), "set_imp_dir", imp,
-                            t("Metti qui i file scaricati da Fineco, Revolut o Chase: l'app li importa da sola."))
-    c1, c2 = st.columns([1, 1])
-    if c1.button(t("Salva cartella"), key="set_imp_save", icon=":material/save:"):
-        try:
-            st.success(t("Cartella impostata: {path}", path=storage.set_import_dir(new_imp)))
-        except RuntimeError as e:
-            st.error(_cap(e))
+    if admin:
+        new_imp = _folder_input(t("Cartella degli estratti"), "set_imp_dir", imp,
+                                t("Metti qui i file scaricati da Fineco, Revolut o Chase: l'app li importa da sola."))
+        c1, c2 = st.columns([1, 1])
+        if c1.button(t("Salva cartella"), key="set_imp_save", icon=":material/save:"):
+            try:
+                st.success(t("Cartella impostata: {path}", path=storage.set_import_dir(new_imp)))
+            except RuntimeError as e:
+                st.error(_cap(e))
+    else:
+        st.markdown(t("Cartella degli estratti: `{path}`", path=imp))
+        c1, c2 = st.columns([1, 1])
     with c2:
         _open_folder(imp, "set_imp_open")
     auto = st.toggle(t("Importa in automatico all'avvio dell'app (e mentre è aperta, ogni 30 secondi)"),
@@ -142,8 +151,8 @@ def render_tab() -> None:
     pend = autoimport.pending_files(imp)
     st.caption(t("Formati riconosciuti: Fineco (Excel movimenti), Revolut (estratto consolidato Excel o CSV), "
                  "Chase (CSV conto e carta, QFX/OFX), export del portafoglio titoli (colonne ISIN e Quantità). "
-                 "Dopo l'import il file va in «{done}», quelli sconosciuti in «{unknown}». File in attesa ora: {n}.",
-                 done=autoimport.DONE_DIR, unknown=autoimport.UNKNOWN_DIR, n=len(pend)))
+                 "Dopo l'import il file va in «{done}»; gli altri file restano dove sono e non vengono toccati. "
+                 "File in attesa ora: {n}.", done=autoimport.DONE_DIR, n=len(pend)))
     if st.button(t("Controlla adesso"), key="set_imp_run", icon=":material/sync:"):
         with st.spinner(t("Importo…")):
             res = autoimport.run(force=True)
@@ -166,20 +175,25 @@ def render_tab() -> None:
     # ---------------------------------------------------------------- backup
     st.subheader(t("Backup"))
     bdir = storage.backup_dir()
-    new_b = _folder_input(t("Cartella dei backup"), "set_bak_dir", bdir,
-                          t("Meglio una cartella sincronizzata (es. OneDrive): così i backup sopravvivono "
-                            "anche se il PC si rompe."))
+    if admin:
+        new_b = _folder_input(t("Cartella dei backup"), "set_bak_dir", bdir,
+                              t("Meglio una cartella sincronizzata (es. OneDrive): così i backup sopravvivono "
+                                "anche se il PC si rompe."))
+    else:
+        st.markdown(t("Cartella dei backup: `{path}`", path=bdir))
     c1, c2, c3 = st.columns([1, 1, 1.4])
-    if c1.button(t("Salva cartella"), key="set_bak_save", icon=":material/save:"):
+    if admin and c1.button(t("Salva cartella"), key="set_bak_save", icon=":material/save:"):
         try:
             st.success(t("Cartella dei backup: {path}", path=storage.set_backup_dir(new_b)))
         except RuntimeError as e:
             st.error(_cap(e))
     with c2:
         _open_folder(bdir, "set_bak_open")
-    od = storage.onedrive_candidates()
-    if od and not storage.is_cloud_folder(bdir):
-        sugg = od[0] / ("MoneyBoard backup" if db.is_admin() else f"MoneyBoard backup {db.current_user()}")
+    od = storage.onedrive_candidates() if admin else []
+    if not admin:
+        pass
+    elif od and not storage.is_cloud_folder(bdir):
+        sugg = od[0] / "MoneyBoard backup"
         if c3.button(t("Usa OneDrive"), key="set_bak_od", icon=":material/cloud_upload:", help=str(sugg)):
             try:
                 storage.set_backup_dir(sugg)
@@ -213,9 +227,9 @@ def render_tab() -> None:
             st.success(t("Backup salvato: {name}", name=p.name))
         except Exception as e:
             st.error(t("Backup non riuscito: {err}", err=e))
-    with open(path, "rb") as fh:
-        c2.download_button(t("Scarica una copia del database"), fh.read(), file_name="spese_backup.db",
-                           icon=":material/download:", key="set_bak_dl")
+    # il file si legge solo quando si preme il pulsante (non a ogni apertura della pagina)
+    c2.download_button(t("Scarica una copia del database"), lambda: path.read_bytes(), file_name="spese_backup.db",
+                       icon=":material/download:", key="set_bak_dl")
 
     backups = storage.list_backups()
     if backups:

@@ -120,6 +120,9 @@ def parse_date(v, style: str) -> str | None:
 def parse(file_bytes: bytes, filename: str) -> pd.DataFrame:
     import io
 
+    from core import safezip
+    safezip.check(file_bytes)
+
     raw = pd.read_excel(io.BytesIO(file_bytes), header=None, engine="openpyxl") if filename.lower().endswith(
         (".xlsx", ".xlsm")) else pd.read_csv(io.BytesIO(file_bytes), header=None)
     rows = raw.values.tolist()

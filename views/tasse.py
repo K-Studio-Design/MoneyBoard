@@ -359,7 +359,7 @@ def _review(new: dict, tx: pd.DataFrame, df: pd.DataFrame) -> None:
                               C_COMP: [_slip_amount(i.comp, i.fig, p.currency) for i in items],
                               C_FIG: [bool(i.fig) for i in items], C_CLS: [labels[i.cls] for i in items]})
         ed = st.data_editor(ed_df, key=f"tax_slip_items_{new.get('id')}_{st.session_state.get(VER, 0)}",
-                            hide_index=True, width="stretch", num_rows="fixed",
+                            hide_index=True, placeholder="–", width="stretch", num_rows="fixed",
                             disabled=[C_CODE, C_DESC, C_DED, C_COMP, C_FIG],
                             column_config={
                                 C_CODE: st.column_config.TextColumn(C_CODE, width="small"),
@@ -753,7 +753,7 @@ def _rows_editor(cfg: dict, tx: pd.DataFrame, rows: pd.DataFrame, year: int) -> 
     st.caption(t("Togli la spunta agli stipendi da non considerare, correggi l'importo in dollari (per esempio con "
                  "il lordo della busta paga) o assegna uno stipendio a un altro stato."))
     ed = st.data_editor(
-        df, key=key, hide_index=True, width="stretch", num_rows="fixed",
+        df, key=key, hide_index=True, placeholder="–", width="stretch", num_rows="fixed",
         disabled=[C_DATE, C_DESC, C_AMT, C_SRC],
         column_config={
             C_INC: st.column_config.CheckboxColumn(C_INC, width="small"),

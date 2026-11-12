@@ -198,7 +198,7 @@ def _trades_tab(base: str):
         show["date"] = show["date"].dt.date
         show["side"] = show["side"].map(t)
         show.insert(0, "elimina", False)
-        ed = st.data_editor(show, hide_index=True, width="stretch", disabled=[c for c in show.columns if c != "elimina"],
+        ed = st.data_editor(show, hide_index=True, placeholder="–", width="stretch", disabled=[c for c in show.columns if c != "elimina"],
                             column_config={"id": None, "elimina": st.column_config.CheckboxColumn(t("Elimina")),
                                            "date": st.column_config.DateColumn(t("Data"), format=i18n.date_fmt()),
                                            "name": t("Nome"), "isin": "ISIN", "side": t("Operazione"),

@@ -188,7 +188,6 @@ def render() -> None:
             return
         st.html('<div class="as-login-head"><div class="as-login-mark" role="img" aria-label="MoneyBoard"></div><h1>MoneyBoard</h1>'
                 f'<p>{t("Bentornato! Accedi per vedere le tue finanze.")}</p></div>')
-        wait = auth.locked_for()
         with st.form("login_form", border=False, enter_to_submit=True):
             user = st.text_input(t("Nome utente"), key="login_user", autocomplete="username", icon=":material/person:",
                                  placeholder=t("Nome utente"))
@@ -197,11 +196,11 @@ def render() -> None:
             remember = st.checkbox(t("Resta connesso su questo browser per 30 giorni"), key="login_remember")
             sent = st.form_submit_button(t("Accedi"), type="primary", width="stretch", icon=":material/login:")
         if sent:
-            wait = auth.locked_for()
+            wait = auth.locked_for(user)
             if wait:
                 st.error(t("Troppi tentativi sbagliati: riprova tra {s} secondi.", s=wait), icon=":material/timer:")
             elif (who := auth.check(user, pwd)):
-                auth.register_success()
+                auth.register_success(user)
                 st.session_state.pop(LOGGED_OUT_KEY, None)
                 st.session_state.pop("login_pwd", None)
                 _start_session(who)
@@ -210,14 +209,11 @@ def render() -> None:
                     st.session_state[SET_COOKIE_KEY] = auth.make_token(who)
                 st.rerun()
             else:
-                left = auth.register_failure()
+                left = auth.register_failure(user)
                 if left:
                     st.error(t("Nome utente o password non corretti. Tentativi rimasti: {n}.", n=left),
                              icon=":material/error:")
                 else:
                     st.error(t("Troppi tentativi sbagliati: accesso bloccato per {s} secondi.", s=auth.LOCK_SECONDS),
                              icon=":material/timer:")
-        elif wait:
-            st.warning(t("Accesso bloccato per troppi tentativi: riprova tra {s} secondi.", s=wait),
-                       icon=":material/timer:")
         st.html(f'<div class="as-login-foot"><span>🔒 {t("I tuoi dati restano solo su questo computer")}</span></div>')

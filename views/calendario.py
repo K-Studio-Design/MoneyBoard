@@ -28,6 +28,7 @@ export default function(component) {
     if (c.level > 0) d.style.setProperty('--lv', c.level);
     d.appendChild(el('div', 'n', String(c.day)));
     if (c.spent) d.appendChild(el('div', 'a', c.spent));
+    if (c.short) d.appendChild(el('div', 'a s', c.short));   // versione corta per il telefono
     if (c.income) d.appendChild(el('div', 'i', c.income));
     for (const x of c.expected) d.appendChild(el('div', 'x', x));
     if (c.more) d.appendChild(el('div', 'x more', c.more));
@@ -110,6 +111,7 @@ def render():
         cells.append({
             "day": d.day, "iso": d.isoformat(), "today": d == today, "future": d > today, "weekend": d.weekday() >= 5,
             "spent": _compact(sp) if sp > 0.005 else "", "income": "+" + _compact(inc) if inc > 0.005 else "",
+            "short": ui.fmt_num(sp, 0) if sp >= 0.5 else ("<1" if sp > 0.005 else ""),
             "level": level, "label": label,
             "expected": [recurring.display_name(s, names) for s in ex[:2]],
             "more": f"+{len(ex) - 2}" if len(ex) > 2 else "",

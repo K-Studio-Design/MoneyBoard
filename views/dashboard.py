@@ -51,24 +51,41 @@ def render():
     p_en, l_en = vs(entrate_m, entrate_p)
     next_month = (cur_start + timedelta(days=32)).replace(day=1)
     giorni_mese = (next_month - timedelta(days=1)).day
-    sel = style.gradient_cards(key="dash_cards", items=[
+    # saldo dei conti di oggi (se si conoscono i saldi): è il numero che conta di più e va per primo
+    built = previsione._build() if ui.display_ccy() == base else None
+    fc = built[0] if built is not None and built[0].mode == "saldo" else None
+    if saldo >= 0:
+        saldo_sub = t("Entrate meno spese")
+    elif entrate_m <= 0:
+        saldo_sub = t("Entrate del mese non ancora arrivate")
+    else:
+        saldo_sub = t("Le spese superano le entrate")
+    first = (dict(id="conti", label=t("Saldo dei conti"),
+                  sub=(t("1 conto, oggi") if len(fc.accounts) == 1 else t("{n} conti, oggi", n=len(fc.accounts))),
+                  value=ui.money(fc.start_value), variant="saldo", tone="neg" if fc.start_value < 0 else "",
+                  foot=(t("Saldo del mese:"), ui.money(saldo)))
+             if fc is not None else None)
+    sel = style.gradient_cards(key="dash_cards", items=([first] if first else []) + [
         dict(id="spese", label=t("Spese"), sub=t("{mese}, primi {n} giorni", mese=mese.capitalize(), n=today.day),
              value=ui.money(spese_m),
              variant="spese", pct=p_sp, pct_label=l_sp),
         dict(id="entrate", label=t("Entrate"), sub=f"{mese.capitalize()}", value=ui.money(entrate_m), variant="entrate",
              pct=p_en, pct_label=l_en),
-        dict(id="saldo", label=t("Saldo del mese"),
-             sub=t("Entrate meno spese") if saldo >= 0 else t("Le spese superano le entrate"),
-             value=ui.money(saldo), variant="saldo",
+    ] + ([] if first else [
+        dict(id="saldo", label=t("Saldo del mese"), sub=saldo_sub,
+             value=ui.money(saldo), variant="saldo", tone="neg" if saldo < 0 and entrate_m > 0 else "",
              pct=(saldo / entrate_m * 100 if entrate_m > 0 and saldo >= 0 else None),
              pct_label=(t("{p}% delle entrate", p=f"{saldo / entrate_m * 100:.0f}") if entrate_m > 0 and saldo >= 0
                         else "")),
+    ]) + [
         dict(id="media", label=t("Media al giorno"),
              sub=t("A fine mese circa {v}", v=ui.money(spese_m / max(today.day, 1) * giorni_mese)),
              value=ui.money(spese_m / max(today.day, 1)), variant="media",
              pct=today.day / giorni_mese * 100, pct_label=t("giorno {d} di {n}", d=today.day, n=giorni_mese)),
     ])
-    if sel:
+    if sel == "conti":
+        previsione.open_now()
+    elif sel:
         dettaglio_mese.open_detail(sel, cur_start, today)
 
     left, right = st.columns([3, 2], gap="medium")
@@ -77,8 +94,8 @@ def render():
         last12 = ui.filter_period(df, *ui.preset_range("Ultimi 12 mesi"))
         m = last12.groupby("mese")[["spesa", "entrata"]].sum().reset_index()
         if not m.empty:
-            # etichette brevi (solo il mese); l'anno compare a gennaio e nel tooltip
-            m["Mese"] = [i18n.month(p.month, short=True) + (f" {str(p.year)[2:]}" if p.month == 1 or i == 0 else "")
+            # etichette brevi (solo il mese); l'anno compare sotto, a gennaio e sul primo mese
+            m["Mese"] = [i18n.month(p.month, short=True) + (f"<br>{p.year}" if p.month == 1 or i == 0 else "")
                          for i, p in enumerate(m["mese"])]
             fig = go.Figure()
             fig.add_bar(x=m["Mese"], y=m["entrata"], name=t("Entrate"), marker_color=style.ENTRATA,
@@ -86,7 +103,7 @@ def render():
             fig.add_bar(x=m["Mese"], y=m["spesa"], name=t("Spese"), marker_color=style.SPESA,
                         hovertemplate="%{y:,.0f} " + disp + f"<extra>{t('Spese')}</extra>")
             fig.update_layout(barmode="group", bargroupgap=0.12)
-            style.chart(fig, height=330)
+            style.chart(fig, height=440)
     with right, style.card("categorie"):
         st.subheader(t("Categorie di {mese}", mese=mese))
         cats = cur[cur["spesa"] != 0].groupby("cat_label")["spesa"].sum().sort_values(ascending=False)
@@ -100,7 +117,7 @@ def render():
         else:
             st.caption(t("Nessuna spesa questo mese."))
 
-    previsione.card()
+    previsione.card(built)
 
     left, right = st.columns([2, 1], gap="medium")
     with left, style.card("movimenti"):

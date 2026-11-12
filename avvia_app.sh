@@ -39,4 +39,12 @@ if ! cmp -s requirements.txt "$VENV/requirements.installati.txt"; then
     "$PY" -m pip install -r requirements.txt && cp requirements.txt "$VENV/requirements.installati.txt"
 fi
 
-exec "$PY" -m streamlit run app.py --server.headless false
+# Di base l'app si apre solo da questo computer. Se nell'app hai attivato "Accesso dagli altri dispositivi
+# della rete" (Impostazioni), nella cartella dei dati c'e' il file accesso_rete.on e l'app si apre a tutta la rete.
+MBROOT="${APP_SPESE_DATA:-$HOME/AppSpese_dati}"
+MBADDR="localhost"
+if [ -f "$MBROOT/accesso_rete.on" ]; then
+    MBADDR="0.0.0.0"
+fi
+
+exec "$PY" -m streamlit run app.py --server.headless false --server.address "$MBADDR"

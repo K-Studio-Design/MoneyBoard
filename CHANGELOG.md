@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.4.0 (2026-11-12)
+
+**Security**
+- The app now opens only on the computer it runs on. To use it from a phone or tablet on your home network, turn
+  on *Settings → General → Access from other devices on the network* and restart it with `avvia_app`.
+- Users created by the administrator can use only their own data folder for database, statements and backups.
+  Before, a user could point the statements folder at another folder of the computer and read (and move) files
+  that weren't theirs.
+- Automatic import no longer moves files it doesn't recognize: they stay where they are and aren't checked again
+  until they change. Files over 50 MB are skipped.
+- Sign-in lock after 5 wrong attempts now applies to that username only, so nobody can lock everyone out.
+- Email password and crypto exchange API keys are stored encrypted (the key is in the data folder and is not part
+  of backups). Older plain-text values are encrypted automatically.
+- Imported files and pictures that would take gigabytes of memory once opened (zip bombs, huge images) are refused.
+- CSV exports can no longer carry spreadsheet formulas from bank descriptions.
+- Notes and names coming from the bank are shown as plain text (no links or remote images).
+- Online demo: at most 300 visitor accounts at a time.
+
+**Fixes**
+- A category color that isn't a valid #RRGGBB code no longer breaks the Analysis page; it's checked when you save.
+- Budget table: empty cells show "–" instead of "None", amounts use your browser's number format.
+- Imports ignore amounts like "inf" or "NaN" and understand the typographic minus sign (−).
+- Calendar on the phone: amounts no longer cut off. Chart axis labels are no longer clipped.
+- Overview chart: month labels no longer overlap at the turn of the year.
+- Cards: no stray dash when the balance isn't synced.
+- Page header: search, alerts and avatar stay on one line even with long subtitles.
+- Settings → Folders & backup reads the database only when you download a copy, not at every visit.
+
+**Look and navigation**
+- Overview opens with your account balance today. Early in the month, a negative month balance says that this
+  month's income hasn't arrived yet instead of "spending is higher than income".
+- Calmer summary cards: neutral background with a colored accent, in every theme.
+- Alerts have a bell with the count next to the avatar. The side menu is grouped into Spending, Plan and Assets;
+  Cards (now "Cards and accounts") moved into it. "Subscriptions" is now "Recurring".
+- On the phone: a bottom bar with the main pages, a more compact header.
+- Transactions are grouped by day, with each day's spending; categories and type are under "Filters".
+- Budgets turn orange when, at the current pace, you'll go over.
+- Liquid Glass theme: category labels are easier to read.
+
 ## 1.3.1 (2026-11-12)
 
 Faster and smoother, with nothing removed:

@@ -71,6 +71,7 @@ try:
     _n_alerts = len(ui.active_alerts()) if _authed else 0
 except Exception:  # gli avvisi non devono mai impedire l'avvio dell'app
     _n_alerts = 0
+nav.ALERTS = _n_alerts   # numero sulla campanella in alto
 nav.PAGES["avvisi"] = st.Page(avvisi.render, title=t("Avvisi ({n})", n=_n_alerts) if _n_alerts else t("Avvisi"),
                               icon=":material/notifications:", url_path="avvisi")
 nav.PAGES["calendario"] = st.Page(calendario.render, title=t("Calendario"), icon=":material/calendar_month:",
@@ -82,15 +83,16 @@ nav.PAGES.update(
     analisi=st.Page(analisi.render, title=t("Analisi"), icon=":material/insights:", url_path="analisi"),
     budget=st.Page(budget.render, title=t("Budget"), icon=":material/data_usage:", url_path="budget"),
     condivise=st.Page(condivise.render, title=t("Spese condivise"), icon=":material/group:", url_path="condivise"),
-    abbonamenti=st.Page(abbonamenti.render, title=t("Abbonamenti"), icon=":material/autorenew:", url_path="abbonamenti"),
+    abbonamenti=st.Page(abbonamenti.render, title=t("Ricorrenti"), icon=":material/autorenew:", url_path="abbonamenti"),
     obiettivi=st.Page(obiettivi.render, title=t("Obiettivi"), icon=":material/savings:", url_path="obiettivi"),
     investimenti=st.Page(investimenti.render, title=t("Investimenti"), icon=":material/show_chart:",
                          url_path="investimenti"),
     valute=st.Page(valute.render, title=t("Valute e cambi"), icon=":material/currency_exchange:", url_path="valute"),
 )
+# menu: le spese di tutti i giorni, quello che si ripete, il patrimonio. Gli avvisi hanno la campanella in alto.
 pages = {
-    t("Spese"): [nav.PAGES[k] for k in ("dashboard", "spese", "analisi", "budget", "calendario", "abbonamenti",
-                                         "condivise", "avvisi")],
+    t("Spese"): [nav.PAGES[k] for k in ("dashboard", "spese", "analisi", "budget", "condivise")],
+    t("Pianifica"): [nav.PAGES[k] for k in ("calendario", "abbonamenti")],
     t("Patrimonio"): [nav.PAGES[k] for k in ("obiettivi", "investimenti", "valute")],
 }
 # funzione in prova (alpha), attivata dal Profilo: la pagina esiste solo se è accesa
@@ -105,16 +107,18 @@ if _tax_on:
                                  url_path="tasse")
     pages[t("Patrimonio")].append(nav.PAGES["tasse"])
 # pagine del profilo: non compaiono nel menu laterale (le nasconde il CSS), si aprono dall'avatar in alto a destra
+# (gli avvisi dalla campanella); «Carte e conti» sta invece nel menu, sotto Patrimonio
 nav.PAGES.update(
     profilo=st.Page(profilo.render, title=t("Profilo"), icon=":material/person:", url_path="profilo"),
-    carte=st.Page(carte.render, title=t("Carte"), icon=":material/credit_card:", url_path="carte"),
+    carte=st.Page(carte.render, title=t("Carte e conti"), icon=":material/credit_card:", url_path="carte"),
     importa=st.Page(importa.render, title=t("Importa estratti"), icon=":material/upload_file:", url_path="importa"),
     banche=st.Page(banche.render, title=t("Collega banche"), icon=":material/account_balance:", url_path="banche"),
     impostazioni=st.Page(impostazioni.render, title=t("Impostazioni"), icon=":material/tune:", url_path="impostazioni"),
 )
 nav.PAGES["utenti"] = st.Page(utenti.render, title=t("Utenti"), icon=":material/group:", url_path="utenti")
 # «Utenti» compare nel menu dell'avatar solo per l'amministratore; per gli altri la pagina dice che non è accessibile
-pages[t("Profilo")] = [nav.PAGES[k] for k in ("profilo", "carte", "importa", "banche", "impostazioni", "utenti")]
+pages[t("Patrimonio")].insert(2, nav.PAGES["carte"])
+pages[t("Profilo")] = [nav.PAGES[k] for k in ("profilo", "importa", "banche", "impostazioni", "utenti", "avvisi")]
 # senza accesso il menu è nascosto: l'indirizzo della pagina richiesta resta e la pagina si apre dopo l'accesso
 pg = st.navigation(pages, expanded=True, position="sidebar" if _authed else "hidden")  # tutte le voci
 theme.ensure_theme()  # applica il tema salvato (dopo navigation, così un eventuale rerun resta sulla pagina)
@@ -219,6 +223,7 @@ def _background() -> None:
 
 
 pg.run()
+ui.bottom_nav(pg)       # sul telefono: barra di navigazione in basso
 focus.handle_pending()  # movimento cliccato dentro il dettaglio di una categoria
 with st.sidebar:
     _bank_autosync()

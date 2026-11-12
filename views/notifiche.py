@@ -19,7 +19,7 @@ def render_tab() -> None:
     if days != notify.reminder_days():
         db.set_setting(notify.REMINDER_DAYS, str(days))
         st.rerun()
-    st.caption(t("Le date arrivano dai pagamenti ricorrenti trovati in Abbonamenti."))
+    st.caption(t("Le date arrivano dai pagamenti ricorrenti trovati nella pagina Ricorrenti."))
     st.divider()
 
     st.markdown("**" + t("Email") + "**")

@@ -91,7 +91,7 @@ def _link():
                 new = [a for a in accs if not a.get("renewed")]
                 old = [a for a in accs if a.get("renewed")]
                 if new:
-                    st.success(t("Nuovi conti collegati ({n}): ", n=len(new)) + ", ".join(a["name"] for a in new))
+                    st.success(t("Nuovi conti collegati ({n}): ", n=len(new)) + ", ".join(ui.md(a["name"]) for a in new))
                 if old:
                     st.success(t("Collegamento rinnovato per {n} conti già presenti: stesso conto nell'app e "
                                  "nessun movimento doppio.", n=len(old)))

@@ -172,7 +172,10 @@ def render():
                 piv.index.name = t("Categoria")
                 style.table(piv, {c: "num" for c in piv.columns}, index=True, total_last=True)
                 sep, dec = (",", ".") if i18n.is_en() else (";", ",")
-                st.download_button(t("Scarica tabella (CSV)"), piv.to_csv(sep=sep, decimal=dec).encode("utf-8-sig"),
+                piv_csv = piv.copy()
+                piv_csv.index = [ui.csv_cell(x) for x in piv_csv.index]
+                piv_csv.index.name = piv.index.name
+                st.download_button(t("Scarica tabella (CSV)"), piv_csv.to_csv(sep=sep, decimal=dec).encode("utf-8-sig"),
                                    file_name=t("spese_per_mese_{a}_{b}.csv", a=start, b=end), mime="text/csv",
                                    icon=":material/download:")
 

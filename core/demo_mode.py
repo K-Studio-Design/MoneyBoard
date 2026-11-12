@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 ENV = "MONEYBOARD_DEMO"
 MAX_AGE = timedelta(hours=6)
+MAX_VISITORS = 300          # al massimo tanti account di prova insieme (i più vecchi lasciano il posto)
 PREFIX = "Demo "
 _cached: bool | None = None
 
@@ -54,10 +55,27 @@ def cleanup(now: datetime | None = None) -> int:
     return n
 
 
+def _limit_visitors() -> int:
+    """Se i visitatori di prova sono troppi (per esempio uno script che apre migliaia di sessioni) si cancellano i
+    più vecchi: lo spazio e la memoria della demo non finiscono mai. Ritorna quanti ne ha cancellati."""
+    from core import users
+    demo = sorted(((str(u.get("created") or ""), uid) for uid, u in users.all_users().items()
+                   if u.get("demo") and str(u.get("name", "")).startswith(PREFIX)))
+    n = 0
+    for _created, uid in demo[:max(0, len(demo) - (MAX_VISITORS - 1))]:
+        try:
+            users.delete(uid, delete_data=True)
+            n += 1
+        except users.UserError:
+            pass
+    return n
+
+
 def new_visitor() -> str:
     """Crea l'account di prova di un nuovo visitatore e ne ritorna l'id."""
     from core import users
     cleanup()
+    _limit_visitors()
     pwd = secrets.token_urlsafe(24)
     for _ in range(5):
         try:

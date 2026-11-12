@@ -35,8 +35,10 @@ REMEMBER_DAYS = 30
 _SECRET_FILE = ".auth_secret"
 
 _lock = threading.Lock()
-_failures: list[float] = []
-_locked_until = 0.0
+# tentativi sbagliati e blocchi tenuti per nome utente: chi sbaglia apposta blocca solo quel nome,
+# non l'accesso di tutti gli altri
+_failures: dict[str, list[float]] = {}
+_locked_until: dict[str, float] = {}
 
 
 def _hash(password: str, salt_hex: str) -> str:
@@ -92,28 +94,42 @@ def is_demo(user: str | None) -> bool:
 
 
 # ---------------------------------------------------------------- protezione dai tentativi ripetuti
-def locked_for() -> int:
-    """Secondi che mancano allo sblocco (0 = si può provare)."""
+def _key(username: str | None) -> str:
+    return " ".join((username or "").split()).casefold()[:64]
+
+
+def _prune(now: float) -> None:
+    """Toglie i conteggi scaduti (la memoria non cresce con nomi utente inventati)."""
+    for k in [k for k, v in _failures.items() if not v or now - v[-1] >= WINDOW]:
+        _failures.pop(k, None)
+    for k in [k for k, v in _locked_until.items() if v <= now]:
+        _locked_until.pop(k, None)
+
+
+def locked_for(username: str | None) -> int:
+    """Secondi che mancano allo sblocco di questo nome utente (0 = si può provare)."""
     with _lock:
-        return max(0, int(round(_locked_until - time.time())))
+        return max(0, int(round(_locked_until.get(_key(username), 0.0) - time.time())))
 
 
-def register_failure() -> int:
-    """Registra un tentativo sbagliato. Ritorna quanti tentativi restano prima del blocco."""
-    global _locked_until
+def register_failure(username: str | None) -> int:
+    """Registra un tentativo sbagliato per quel nome utente. Ritorna quanti tentativi restano prima del blocco."""
     now = time.time()
+    k = _key(username)
     with _lock:
-        _failures[:] = [t for t in _failures if now - t < WINDOW] + [now]
-        if len(_failures) >= MAX_FAILURES:
-            _locked_until = now + LOCK_SECONDS
-            _failures.clear()
+        _prune(now)
+        tries = [x for x in _failures.get(k, []) if now - x < WINDOW] + [now]
+        if len(tries) >= MAX_FAILURES:
+            _locked_until[k] = now + LOCK_SECONDS
+            _failures.pop(k, None)
             return 0
-        return MAX_FAILURES - len(_failures)
+        _failures[k] = tries
+        return MAX_FAILURES - len(tries)
 
 
-def register_success() -> None:
+def register_success(username: str | None) -> None:
     with _lock:
-        _failures.clear()
+        _failures.pop(_key(username), None)
 
 
 # ---------------------------------------------------------------- «resta connesso»

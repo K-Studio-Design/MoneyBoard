@@ -121,10 +121,15 @@ def render():
         st.subheader(t("Elenco movimenti"))
         first = df["date"].min().date() if df["date"].notna().any() else None
         start, end = ui.period_picker("mov", default="Ultimi 3 mesi", first_date=first)
-        f1, f3, f4 = st.columns([2, 1, 2])
-        cats_sel = f1.multiselect(t("Categorie"), db.category_names(), placeholder=t("Tutte"), format_func=ui.cat)
-        tipo_sel = f3.selectbox(t("Tipo"), ["Tutti", "Uscite", "Entrate", "Neutri"], format_func=t)
-        text = f4.text_input(t("Cerca nella descrizione"))
+        # ricerca sempre in vista; categorie e tipo in un menu «Filtri» (sul telefono non occupano lo schermo)
+        f1, f2 = st.columns([4, 1.3], vertical_alignment="bottom")
+        text = f1.text_input(t("Cerca nella descrizione"), key="mov_text", icon=":material/search:",
+                             placeholder=t("es. supermercato"))
+        n_on = int(bool(st.session_state.get("mov_cats"))) + int(st.session_state.get("mov_tipo", "Tutti") != "Tutti")
+        with f2.popover(t("Filtri") + (f" · {n_on}" if n_on else ""), icon=":material/filter_list:", width="stretch"):
+            cats_sel = st.multiselect(t("Categorie"), db.category_names(), placeholder=t("Tutte"), format_func=ui.cat,
+                                      key="mov_cats")
+            tipo_sel = st.selectbox(t("Tipo"), ["Tutti", "Uscite", "Entrate", "Neutri"], format_func=t, key="mov_tipo")
 
         view = ui.filter_period(df, start, end)
         if cats_sel:
@@ -141,7 +146,8 @@ def render():
         if mode != "Modifica in tabella":
             st.caption(summary + t("Clicca su un movimento per vederne il dettaglio."))
             n_show = st.session_state.get("mov_n", 50)
-            sel = style.tx_list(view.head(n_show), lambda v, c: ui.money(v, c), ui.color_map(), base, key="mov_tx")
+            sel = style.tx_list(view.head(n_show), lambda v, c: ui.money(v, c), ui.color_map(), base, key="mov_tx",
+                                group_days=True)
             if sel is not None:
                 focus.open_focus(sel)
             if len(view) > n_show:
@@ -159,7 +165,7 @@ def render():
         edit["category"] = edit["category"].map(lambda c: labels.get(c, c) if isinstance(c, str) else None)
         edit.insert(0, "elimina", False)
         edited = st.data_editor(
-            edit, hide_index=True, width="stretch", key="tx_editor", num_rows="fixed",
+            edit, hide_index=True, placeholder="–", width="stretch", key="tx_editor", num_rows="fixed",
             column_config={
                 "elimina": st.column_config.CheckboxColumn(t("Elimina"), width="small"),
                 "id": None,
@@ -214,6 +220,7 @@ def render():
         out["category"] = out["category"].map(lambda c: ui.cat(c) if isinstance(c, str) else "")
         out = out.rename(columns={"valore_base": f"importo_{base}"})
         out["date"] = out["date"].dt.strftime(i18n.strf())
+        out = ui.csv_safe(out, ["description", "category", "account", "notes", "source"])
         sep, dec = (",", ".") if i18n.is_en() else (";", ",")  # come se lo aspetta Excel nella lingua scelta
         c2.download_button(t("Esporta CSV"), out.to_csv(index=False, sep=sep, decimal=dec).encode("utf-8-sig"),
                            file_name=t("movimenti_{a}_{b}.csv", a=start, b=end), mime="text/csv",

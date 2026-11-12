@@ -12,9 +12,10 @@ Ogni lettore ritorna le righe nel formato usato dagli import dell'app:
 from __future__ import annotations
 
 import io
+import math
 import re
-import zipfile
 import xml.etree.ElementTree as ET
+import zipfile
 
 from core import i18n
 
@@ -41,6 +42,8 @@ def detect(data: bytes, filename: str) -> str | None:
     if name.endswith(".zip") or data[:4] == b"PK\x03\x04":
         if name.endswith((".xlsx", ".xlsm")):
             return None
+        from core import safezip
+        safezip.check(data)
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as z:
                 if any(n.lower().endswith(".xml") for n in z.namelist()):
@@ -172,7 +175,7 @@ def _infer_dayfirst(values: list[str], default: bool) -> bool:
 def _num(v) -> float | None:
     if v is None:
         return None
-    s = str(v).strip().replace(" ", "").replace("\xa0", "")
+    s = str(v).strip().replace(" ", "").replace("\xa0", "").replace("\u2212", "-")
     if not s:
         return None
     if "," in s and "." in s:
@@ -181,9 +184,10 @@ def _num(v) -> float | None:
         # 1,234 / 12,345,678 = migliaia (stile USA); altrimenti la virgola è il separatore decimale
         s = s.replace(",", "") if re.fullmatch(r"[+-]?\d{1,3}(,\d{3})+", s) else s.replace(",", ".")
     try:
-        return float(s)
+        x = float(s)
     except ValueError:
         return None
+    return x if math.isfinite(x) else None   # «inf», «nan»: non sono importi
 
 
 # ---------------------------------------------------------------- CAMT (ISO 20022)
@@ -220,6 +224,8 @@ def _txt(el, path: str) -> str:
 
 
 def _camt_files(data: bytes) -> list[bytes]:
+    from core import safezip
+    safezip.check(data)
     if data[:4] == b"PK\x03\x04":
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             return [z.read(n) for n in sorted(z.namelist()) if n.lower().endswith(".xml")]

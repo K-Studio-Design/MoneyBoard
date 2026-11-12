@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import sqlite3
@@ -468,9 +469,23 @@ def add_owner_name(name: str) -> bool:
 
 
 # ---------------------------------------------------------------- categories & rules
+_HEX_COLOR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+DEFAULT_COLOR = "#888888"
+
+
+def clean_color(value) -> str:
+    """Colore #RGB o #RRGGBB valido, altrimenti il grigio predefinito (un colore sbagliato bloccherebbe i grafici)."""
+    v = str(value or "").strip()
+    if v and not v.startswith("#") and re.fullmatch(r"[0-9a-fA-F]{3}|[0-9a-fA-F]{6}", v):
+        v = "#" + v
+    return v if _HEX_COLOR.match(v) else DEFAULT_COLOR
+
+
 def categories_df() -> pd.DataFrame:
     with connect() as con:
-        return pd.read_sql_query("SELECT * FROM categories ORDER BY sort_order, name", con)
+        df = pd.read_sql_query("SELECT * FROM categories ORDER BY sort_order, name", con)
+    df["color"] = df["color"].map(clean_color)
+    return df
 
 
 _categories_rev = 0   # cambia a ogni modifica delle categorie (per la cache dei nomi da mostrare)
@@ -654,6 +669,10 @@ def insert_transactions(rows: list[dict], match_sources: bool = True) -> tuple[i
             "category", "category_locked", "account", "source", "notes", "external_id", "card", "bank_uid"]
     with connect() as con:
         for r in rows:
+            amt = r.get("amount")
+            if isinstance(amt, float) and not math.isfinite(amt):   # importo non valido (file rovinato): si salta
+                skipped += 1
+                continue
             kind = r.pop("_card_kind", "")
             if not r.get("card"):
                 digits, k2 = cards.detect(r.get("description", ""))
@@ -706,6 +725,7 @@ def _load_transactions() -> pd.DataFrame:
             con,
         )
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["color"] = df["color"].map(clean_color)
     return df
 
 

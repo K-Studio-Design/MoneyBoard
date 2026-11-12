@@ -15,6 +15,7 @@ MAX_UPLOAD = 15 * 1024 * 1024      # file più grandi: rifiutati
 CARD_SIZE = (856, 540)             # formato carta di credito (85,6 × 54 mm)
 PHOTO_MAX = 1400                   # lato lungo massimo delle foto degli obiettivi
 FORMATS = ["png", "jpg", "jpeg", "webp"]
+MAX_PIXELS = 60_000_000            # 60 megapixel: bastano anche le foto da 48 MP dei telefoni
 
 
 class ImageError(ValueError):
@@ -29,7 +30,13 @@ def _open(data: bytes):
         raise ImageError(t("L'immagine è troppo grande (al massimo 15 MB)."))
     try:
         im = Image.open(io.BytesIO(data))
+        w, h = im.size   # letto dall'intestazione, prima di decomprimere
+        if w * h > MAX_PIXELS:
+            # un file piccolo può dichiarare un'immagine enorme: aperta occuperebbe GB di memoria
+            raise ImageError(t("L'immagine è troppo grande ({w} × {h} pixel): usane una più piccola.", w=w, h=h))
         im.load()
+    except ImageError:
+        raise
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
         raise ImageError(t("Non riesco a leggere l'immagine: usa un file PNG, JPG o WEBP.")) from None
     return ImageOps.exif_transpose(im)  # le foto del telefono hanno l'orientamento nei metadati

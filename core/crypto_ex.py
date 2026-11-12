@@ -37,23 +37,48 @@ def needs_password(exchange_id: str) -> bool:
 def _client(row: dict):
     import ccxt
 
+    from core import secretbox
+    from core.i18n import t
+    key, secret = secretbox.unseal(row["api_key"]), secretbox.unseal(row["secret"])
+    if not key or not secret:
+        raise RuntimeError(t("le chiavi API salvate non si possono leggere su questo computer: rimuovi l'exchange "
+                             "e aggiungilo di nuovo"))
     cls = getattr(ccxt, row["exchange_id"])
-    params = {"apiKey": row["api_key"], "secret": row["secret"], "enableRateLimit": True, "timeout": 20000}
-    if row.get("password"):
-        params["password"] = row["password"]
+    params = {"apiKey": key, "secret": secret, "enableRateLimit": True, "timeout": 20000}
+    pwd = secretbox.unseal(row.get("password"))
+    if pwd:
+        params["password"] = pwd
     return cls(params)
 
 
+def _seal_old_rows() -> None:
+    """Chiavi salvate in chiaro da una versione precedente: da ora restano cifrate."""
+    from core import secretbox
+    with db.connect() as con:
+        rows = con.execute("SELECT id, api_key, secret, password FROM exchanges").fetchall()
+        for r in rows:
+            vals = [r["api_key"], r["secret"], r["password"]]
+            if any(v and not secretbox.is_sealed(v) for v in vals):
+                con.execute("UPDATE exchanges SET api_key=?, secret=?, password=? WHERE id=?",
+                            tuple(secretbox.seal(v) for v in vals) + (r["id"],))
+
+
 def exchanges_df() -> pd.DataFrame:
+    try:
+        _seal_old_rows()
+    except Exception:  # la cifratura delle vecchie chiavi non deve impedire di vedere l'elenco
+        pass
     with db.connect() as con:
         return pd.read_sql_query("SELECT id, exchange_id, label, last_sync FROM exchanges ORDER BY id", con)
 
 
 def add_exchange(exchange_id, label, api_key, secret, password="") -> None:
+    from core import secretbox
     with db.connect() as con:
         con.execute(
             "INSERT INTO exchanges(exchange_id, label, api_key, secret, password) VALUES (?,?,?,?,?)",
-            (exchange_id, label or exchange_id, api_key.strip(), secret.strip(), (password or "").strip()),
+            (exchange_id, label or exchange_id, secretbox.seal(api_key.strip()), secretbox.seal(secret.strip()),
+             secretbox.seal((password or "").strip())),
         )
 
 

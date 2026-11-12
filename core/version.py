@@ -1,6 +1,6 @@
 """Versione dell'app e autore (mostrati in fondo alla barra laterale)."""
 
-APP_VERSION = "1.3.1"
+APP_VERSION = "1.4.0"
 AUTHOR = "K Studio Design"
 GITHUB_REPO = "K-Studio-Design/MoneyBoard"            # dove si controllano le nuove versioni
 RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"

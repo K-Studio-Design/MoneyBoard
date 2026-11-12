@@ -5,7 +5,7 @@
 App per gestire spese, entrate, abbonamenti, obiettivi di risparmio e investimenti, con i dati salvati **solo sul
 tuo computer** (nessun server, nessun account online). Interfaccia in italiano e in inglese.
 
-Fatta da **K Studio Design** in Italia · versione 1.3.1 · licenza
+Fatta da **K Studio Design** in Italia · versione 1.4.0 · licenza
 [PolyForm Noncommercial 1.0.0](LICENSE.md): gratuita per uso personale e non commerciale (vedi sotto).
 
 **▶ [Prova la demo online](https://moneyboard-demo.streamlit.app)**: niente installazione, niente registrazione, dati inventati (in inglese).
@@ -25,7 +25,8 @@ Fatta da **K Studio Design** in Italia · versione 1.3.1 · licenza
 2. Da terminale, nella cartella dell'app: `chmod +x avvia_app.sh` (solo la prima volta) e poi `./avvia_app.sh`.
    Per aggiornare i pacchetti: `./avvia_app.sh aggiorna`.
 
-Avvio manuale (qualsiasi sistema): `pip install -r requirements.txt` e poi `streamlit run app.py`.
+Avvio manuale (qualsiasi sistema): `pip install -r requirements.txt` e poi
+`streamlit run app.py --server.address localhost` (così l'app si apre solo dal tuo computer).
 
 ## Primo avvio: il tuo account
 
@@ -35,12 +36,13 @@ sarai l'**amministratore**. Non ci sono account o password predefiniti.
 - La password non viene mai salvata in chiaro: solo la sua impronta PBKDF2-SHA256 (300.000 iterazioni, sale
   casuale) nel file `amministratore.json` della cartella dati.
 - Dal menu dell'avatar (in alto a destra) → **Utenti** puoi cambiare il tuo nome e la tua password e creare altri
-  utenti (per esempio i familiari). Ognuno ha i **suoi dati separati** in `AppSpese_dati/utenti/<nome>` e non può
-  vedere né usare le cartelle degli altri. Un utente creato come **account di prova** parte con circa 460
+  utenti (per esempio i familiari). Ognuno ha i **suoi dati separati** in `AppSpese_dati/utenti/<nome>`: per
+  sicurezza può usare solo quella cartella (database, estratti e backup), così non può leggere né spostare i file
+  degli altri o del computer. Un utente creato come **account di prova** parte con circa 460
   movimenti fittizi, utile per far provare l'app.
 - Se cambi la password di un utente o lo elimini, le sue sessioni aperte e i suoi «resta connesso» si chiudono.
-- Il nome utente non distingue maiuscole e minuscole, la password sì. Dopo 5 tentativi sbagliati l'accesso si
-  blocca per un minuto. «Resta connesso su questo browser per 30 giorni» evita di riscrivere la password.
+- Il nome utente non distingue maiuscole e minuscole, la password sì. Dopo 5 tentativi sbagliati l'accesso a
+  quel nome utente si blocca per un minuto (gli altri utenti possono entrare). «Resta connesso su questo browser per 30 giorni» evita di riscrivere la password.
 
 **Password dell'amministratore dimenticata?** Chiudi l'app, cancella il file `amministratore.json` nella cartella
 dati (`AppSpese_dati` nella tua cartella utente) e riapri: l'app ti chiede di creare di nuovo l'account. I dati
@@ -51,6 +53,11 @@ può accedere anche all'app: proteggi il computer con la sua password.
 
 - Tutti i dati (database SQLite, estratti, backup, chiavi delle banche) stanno nella cartella dati sul tuo
   computer, di default `AppSpese_dati` nella tua cartella utente, fuori dalla cartella dell'app.
+- Le password che l'app deve ricordare (posta, chiavi API degli exchange) sono salvate **cifrate**: la chiave sta
+  nella cartella dati e non finisce nei backup. Se apri il database su un altro computer, l'app te le richiede.
+- Di base l'app si apre **solo dal computer su cui gira**. Per usarla anche dal telefono o dal tablet sulla rete di
+  casa, attiva *Impostazioni → Generali → Accesso dagli altri dispositivi della rete* e riavviala con `avvia_app`:
+  la pagina mostra l'indirizzo da aprire. Non attivarlo su reti pubbliche o di lavoro.
 - L'app si collega a internet solo per: cambi valuta (BCE/Frankfurter, Yahoo Finance), quotazioni dei titoli
   (Yahoo Finance), e, solo se li configuri tu, le banche (Enable Banking), gli exchange crypto (API in sola
   lettura) e il tuo server di posta (per le email). Una volta al giorno chiede a GitHub se c'è una versione nuova
@@ -72,7 +79,7 @@ Le traduzioni stanno in `core/i18n_en.py` (testo italiano → testo inglese).
 
 ## Carte
 
-Menu dell'avatar → **Carte**: le carte trovate nei movimenti (dal numero scritto nella descrizione, per esempio
+Menu laterale → **Carte e conti**: le carte trovate nei movimenti (dal numero scritto nella descrizione, per esempio
 «Carta N. ***** 123» di Fineco) e quelle collegate via Open Banking, con lo speso del mese, il saldo sincronizzato
 dalla banca e, cliccando, tutte le spese fatte con quella carta. Nome personalizzabile, carte vecchie nascondibili.
 Ogni carta (e ogni conto) è disegnata come una carta vera: puoi sceglierne il colore oppure caricare il disegno della
@@ -113,7 +120,7 @@ Tutto si configura in *Impostazioni → Cartelle e backup* (menu dell'avatar in 
   «Sposta il database qui»: prima viene fatto un backup, la copia vecchia resta dov'era.
 - **Estratti da importare**: metti in questa cartella i file scaricati da Fineco, Revolut, Chase (o l'export del
   portafoglio titoli). All'avvio dell'app, e poi ogni 30 secondi mentre è aperta, vengono importati da soli (senza
-  doppioni) e spostati in «Importati/AAAA-MM»; quelli non riconosciuti finiscono in «Non riconosciuti».
+  doppioni) e spostati in «Importati/AAAA-MM»; gli altri file restano dove sono e non vengono toccati.
 - **Backup**: copia automatica del database ogni N giorni (default 7), tenendo gli ultimi N (default 8).
   Consigliato scegliere una cartella di OneDrive (pulsante «Usa OneDrive»). Da lì si può anche ripristinare.
 
@@ -129,8 +136,8 @@ Tutto si configura in *Impostazioni → Cartelle e backup* (menu dell'avatar in 
 | 🧾 Movimenti | Inserimento manuale in qualsiasi valuta (cambio automatico alla data), modifica, eliminazione, filtri, export CSV, regole |
 | 📊 Analisi | Periodi preimpostati o personalizzati; totali, medie (mensile/giornaliera/per movimento), tasso di risparmio, confronto col periodo precedente, grafici per mese e categoria, andamento, top esercenti, tabella mesi × categorie |
 | 📅 Calendario | Il mese come calendario: ogni giorno colorato in base a quanto hai speso, entrate in verde, addebiti previsti (abbonamenti, stipendio) nei giorni futuri. Clic su un giorno per i movimenti; giorni senza spese, giorno più costoso, spesa media per giorno della settimana |
-| 🔁 Abbonamenti | Pagamenti ricorrenti trovati in automatico (le date previste tengono conto di regole come «ultimo giorno lavorativo del mese», con weekend e festività italiane; per lo stipendio si sceglie nel Profilo: ultimo o primo giorno lavorativo, uno o più giorni del mese a scelta, ogni settimana o ogni 2 settimane, con festività italiane o americane) (Netflix, Spotify, rate, canoni, bollette…): costo al mese e all'anno, prossimo addebito, cambi di prezzo, quelli non più addebitati; entrate ricorrenti (stipendio). Si possono rinominare o nascondere |
-| 🔔 Avvisi | Possibili addebiti doppi, spese molto più alte del solito presso lo stesso negozio, le spese più alte dell'anno, categorie già sopra la media del mese, budget all'80% o superati, abbonamenti nuovi, aumentati o non più addebitati, promemoria degli addebiti in arrivo. Il numero compare nel menu; «Ignora» li toglie |
+| 🔁 Ricorrenti | Pagamenti ricorrenti trovati in automatico (le date previste tengono conto di regole come «ultimo giorno lavorativo del mese», con weekend e festività italiane; per lo stipendio si sceglie nel Profilo: ultimo o primo giorno lavorativo, uno o più giorni del mese a scelta, ogni settimana o ogni 2 settimane, con festività italiane o americane) (Netflix, Spotify, rate, canoni, bollette…): costo al mese e all'anno, prossimo addebito, cambi di prezzo, quelli non più addebitati; entrate ricorrenti (stipendio). Si possono rinominare o nascondere |
+| 🔔 Avvisi | Possibili addebiti doppi, spese molto più alte del solito presso lo stesso negozio, le spese più alte dell'anno, categorie già sopra la media del mese, budget all'80% o superati, abbonamenti nuovi, aumentati o non più addebitati, promemoria degli addebiti in arrivo. Il numero compare sulla campanella in alto; «Ignora» li toglie |
 | 🎯 Budget | Un tetto di spesa al mese per categoria (e, volendo, per il totale): barre di avanzamento, quanto puoi ancora spendere al giorno, avvisi all'80% e quando lo superi. Si può partire dalla media degli ultimi 3 mesi |
 | ✂️ Dividere un movimento | Dal dettaglio di un movimento: un pagamento diviso in più categorie (es. un ordine online con un regalo e una cosa per la casa). Il totale resta quello della banca |
 | 🤝 Spese condivise | Chi ti deve dei soldi e a chi li devi tu: la quota di una spesa pagata anche per altri, i rimborsi ricevuti o dati, il saldo per persona. Nelle tue spese resta solo la tua parte |

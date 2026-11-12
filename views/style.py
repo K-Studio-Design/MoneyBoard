@@ -158,8 +158,22 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
   border: 2px solid rgba(255,255,255,0.7); box-shadow: none; }}
 .as-profile .n {{ font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }}
 .as-profile .m {{ opacity: .9; font-size: .9rem; margin-top: .15rem; }}
-.st-key-as_topbar {{ margin: 0 0 1.4rem 0; }}
+.st-key-as_topbar {{ margin: 0 0 1.4rem 0; flex-wrap: nowrap !important; }}
 .st-key-as_topbar .as-top {{ margin: 0; }}
+/* il titolo si restringe (e va a capo lui) invece di spingere ricerca e avatar sulla riga sotto */
+.st-key-as_topbar > div:first-child {{ flex: 1 1 0 !important; min-width: 0 !important; }}
+/* campanella degli avvisi */
+[class*="st-key-as_bell"] {{ flex: 0 0 auto !important; }}
+[class*="st-key-as_bell"] a {{ height: 44px; min-width: 44px; padding: 0 .75rem !important; border-radius: 999px !important;
+  border: 1px solid var(--as-line); background: var(--as-surface); justify-content: center; gap: .3rem;
+  box-shadow: var(--as-shadow); }}
+[class*="st-key-as_bell"] a:hover {{ border-color: var(--as-accent); }}
+.st-key-as_bell a [data-testid="stMarkdownContainer"] {{ display: none; }}
+.st-key-as_bell a {{ padding: 0 !important; width: 44px; }}
+.st-key-as_bell_on a [data-testid="stMarkdownContainer"] p {{ font-weight: 800; color: var(--as-spesa); font-size: .9rem; }}
+.st-key-as_bell_on a [data-testid="stIconMaterial"] {{ color: var(--as-spesa) !important; }}
+/* barra di navigazione in basso: solo sul telefono */
+.st-key-as_bottomnav {{ display: none !important; }}
 /* avatar = pulsante del menu profilo */
 .st-key-as_me button {{ width: 44px; height: 44px; min-height: 44px; border-radius: 50% !important; padding: 0 !important;
   border: 2px solid rgba(255,255,255,0.65) !important; color: #fff !important; font-weight: 700;
@@ -184,30 +198,33 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
 /* le pagine del profilo non compaiono nel menu laterale: si aprono dall'avatar */
 [data-testid="stSidebarNavItems"] > div:has(a[href$="/profilo"]) {{ display: none; }}
 
-/* ---- card a gradiente ---- */
+/* ---- card dei numeri principali: superficie neutra, il colore solo come accento ---- */
 .as-grads {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.1rem; margin-bottom: 1.3rem; }}
-.as-grad {{ position: relative; overflow: hidden; border-radius: 20px; padding: 1.15rem 1.25rem 1.1rem; color: #fff;
-  box-shadow: 0 10px 24px rgba(60,40,120,0.16); min-height: 132px; }}
-.as-grad::after {{ content: ""; position: absolute; right: -38px; top: -38px; width: 130px; height: 130px;
-  border-radius: 50%; background: rgba(255,255,255,0.14); }}
-.as-grad::before {{ content: ""; position: absolute; right: 18px; bottom: -56px; width: 120px; height: 120px;
-  border-radius: 50%; background: rgba(255,255,255,0.10); }}
-.as-grad .l {{ font-size: .92rem; font-weight: 600; opacity: .95; position: relative; z-index: 1; }}
-.as-grad .s {{ font-size: .76rem; opacity: .85; margin-top: .1rem; position: relative; z-index: 1; }}
-.as-grad .v {{ font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em; margin-top: .55rem; white-space: nowrap;
+.as-grad {{ position: relative; overflow: hidden; border-radius: 20px; padding: 1.1rem 1.25rem 1.05rem; color: var(--as-ink);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--g1) 9%, var(--as-surface)) 0%, var(--as-surface) 62%);
+  border: 1px solid var(--as-line); box-shadow: var(--as-shadow); min-height: 128px; }}
+.as-grad::before {{ content: ""; position: absolute; left: 0; top: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--g1), var(--g2)); }}
+.as-grad .l {{ font-size: .9rem; font-weight: 700; position: relative; z-index: 1; display: flex; align-items: center;
+  gap: .45rem; color: color-mix(in srgb, var(--g1) 72%, var(--as-ink)); }}
+.as-grad .l::before {{ content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--g1); flex: 0 0 auto; }}
+.as-grad .s {{ font-size: .76rem; color: var(--as-muted); margin-top: .15rem; position: relative; z-index: 1; }}
+.as-grad .v {{ font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em; margin-top: .5rem; white-space: nowrap;
   position: relative; z-index: 1; }}
-.as-grad .p {{ display: flex; align-items: center; gap: .6rem; margin-top: .55rem; position: relative; z-index: 1; }}
-.as-grad .p .bar {{ flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.3); overflow: hidden; }}
-.as-grad .p .bar span {{ display: block; height: 100%; border-radius: 3px; background: #fff; }}
-.as-grads-click .as-grad {{ cursor: pointer; transition: transform .14s ease, box-shadow .14s ease; }}
-.as-grads-click .as-grad:hover {{ transform: translateY(-3px); box-shadow: 0 14px 30px rgba(0,0,0,0.18); }}
-.as-grads-click .as-grad:focus-visible {{ outline: 3px solid #fff; outline-offset: 2px; }}
+.as-grad .v.neg {{ color: var(--as-spesa); }} .as-grad .v.pos {{ color: var(--as-entrata); }}
+.as-grad .p {{ display: flex; align-items: center; gap: .6rem; margin-top: .55rem; position: relative; z-index: 1;
+  color: var(--as-muted); }}
+.as-grad .p .bar {{ flex: 1; height: 5px; border-radius: 3px; background: var(--as-track); overflow: hidden; }}
+.as-grad .p .bar span {{ display: block; height: 100%; border-radius: 3px; background: var(--g1); }}
+.as-grads-click .as-grad {{ cursor: pointer; transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }}
+.as-grads-click .as-grad:hover {{ transform: translateY(-3px); border-color: color-mix(in srgb, var(--g1) 45%, var(--as-line)); }}
+.as-grads-click .as-grad:focus-visible {{ outline: 3px solid var(--as-accent); outline-offset: 2px; }}
 .as-grad .go {{ position: absolute; top: .85rem; right: .9rem; z-index: 2; font-family: "Material Symbols Rounded";
-  font-size: 1.15rem; opacity: 0; transition: opacity .14s ease; }}
+  font-size: 1.15rem; opacity: 0; transition: opacity .14s ease; color: var(--as-muted); }}
 .as-grads-click .as-grad:hover .go, .as-grads-click .as-grad:focus-visible .go {{ opacity: .9; }}
-.as-grad .p b {{ font-size: .8rem; }}
-.as-grad .f {{ font-size: .82rem; opacity: .92; margin-top: .3rem; position: relative; z-index: 1; }}
-.as-grad .f b {{ font-weight: 700; }}
+.as-grad .p b {{ font-size: .8rem; font-weight: 600; }}
+.as-grad .f {{ font-size: .82rem; color: var(--as-muted); margin-top: .3rem; position: relative; z-index: 1; }}
+.as-grad .f b {{ font-weight: 700; color: var(--as-ink); }}
 
 /* ---- numeri in card bianche ---- */
 .as-kpis {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: .2rem 0 1.2rem 0; }}
@@ -274,6 +291,11 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
 .as-row {{ display: grid; grid-template-columns: 2.6rem minmax(0, 1fr) auto auto; gap: .9rem; align-items: center;
   padding: .7rem .5rem; border-bottom: 1px solid var(--as-line); font-size: .9rem; border-radius: 12px; }}
 .as-row:last-child {{ border-bottom: none; }}
+.as-day {{ display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: 1rem .35rem .35rem;
+  font-size: .8rem; font-weight: 700; color: var(--as-muted); border-bottom: 1px solid var(--as-line); }}
+.as-day:first-child {{ padding-top: .2rem; }}
+.as-day .tot {{ font-weight: 600; font-variant-numeric: tabular-nums; }}
+.as-note {{ color: var(--as-muted); font-size: .875rem; overflow-wrap: anywhere; margin: -.25rem 0 .25rem 0; }}
 .as-row.nopill {{ grid-template-columns: 2.6rem minmax(0, 1fr) auto; }}
 .as-row .av {{ width: 2.4rem; height: 2.4rem; border-radius: 12px; display: grid; place-items: center;
   font-weight: 700; font-size: .78rem; }}
@@ -320,6 +342,7 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
 .as-cal .d .n {{ font-weight: 700; font-size: .82rem; color: var(--as-muted); }}
 .as-cal .d.we .n {{ color: var(--as-accent); }}
 .as-cal .d .a {{ font-weight: 700; font-size: .8rem; white-space: nowrap; color: var(--as-ink); }}
+.as-cal .d .a.s {{ display: none; }}
 .as-cal .d .i {{ font-weight: 600; white-space: nowrap; color: var(--as-entrata); }}
 .as-cal .d .x {{ font-style: italic; color: var(--as-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
 .as-cal .d .x::before {{ content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%;
@@ -417,12 +440,40 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
   .st-key-as_topbar .st-key-as_search_box [data-testid="stTextInput"] {{ width: 100% !important; }}
   .st-key-as_topbar .st-key-as_date_box, .st-key-as_topbar .as-date {{ display: none !important; }}
   .st-key-as_topbar .st-key-as_me {{ flex: 0 0 auto !important; width: auto !important; }}
+  .st-key-as_topbar > div:first-child {{ flex: 1 1 100% !important; }}
+  /* ricerca, campanella e avatar sulla stessa riga: la ricerca prende lo spazio che resta */
+  .st-key-as_topbar {{ column-gap: .5rem !important; }}
+  .st-key-as_topbar > div:has(.st-key-as_search_box) {{ flex: 1 1 0 !important; min-width: 0 !important; }}
+  .st-key-as_topbar > div:has(.st-key-as_search_box) > div {{ width: 100% !important; }}
+  /* barra in basso con le pagine principali; il contenuto finisce sopra la barra */
+  .st-key-as_bottomnav {{ display: flex !important; position: fixed; left: 0; right: 0; bottom: 0; z-index: 999990;
+    flex-wrap: nowrap !important; gap: 0 !important; width: 100% !important;
+    padding: .3rem .2rem calc(.3rem + env(safe-area-inset-bottom)) !important;
+    background: var(--as-surface); border-top: 1px solid var(--as-line); box-shadow: 0 -8px 24px rgba(0,0,0,0.14); }}
+  .st-key-as_bottomnav > div {{ flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; }}
+  .st-key-as_bottomnav a {{ flex-direction: column !important; gap: .05rem !important; padding: .32rem .1rem !important;
+    width: 100% !important; justify-content: center !important; border-radius: 12px; }}
+  .st-key-as_bottomnav a [data-testid="stIconMaterial"] {{ font-size: 1.35rem !important; color: var(--as-muted) !important; }}
+  .st-key-as_bottomnav a [data-testid="stMarkdownContainer"] p {{ font-size: .64rem !important; color: var(--as-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }}
+  [class*="st-key-as_bn_"][class*="_on"] a {{ background: var(--as-accent-soft); }}
+  [class*="st-key-as_bn_"][class*="_on"] a [data-testid="stIconMaterial"],
+  [class*="st-key-as_bn_"][class*="_on"] a [data-testid="stMarkdownContainer"] p {{ color: var(--as-accent) !important;
+    font-weight: 700; }}
+  [data-testid="stMainBlockContainer"] {{ padding-bottom: 6rem !important; }}
   .as-top h1 {{ font-size: 1.5rem !important; }} .as-top p {{ font-size: .82rem; }}
   /* calendario */
   .as-cal {{ gap: 3px; }} .as-cal .h {{ font-size: .66rem; }}
   .as-cal .d {{ min-height: 48px; padding: .22rem .25rem; border-radius: 8px; }}
-  .as-cal .d .n {{ font-size: .7rem; }} .as-cal .d .a {{ font-size: .58rem; overflow: hidden; text-overflow: clip; }}
+  .as-cal .d .n {{ font-size: .7rem; }} .as-cal .d .a {{ display: none; }}
+  .as-cal .d .a.s {{ display: block; font-size: .66rem; overflow: hidden; text-overflow: clip; }}
   [data-testid="stHorizontalBlock"]:has(.st-key-cal_prev) {{ flex-wrap: nowrap !important; gap: .4rem !important; }}
+  /* movimenti: ricerca e «Filtri» sulla stessa riga */
+  [data-testid="stHorizontalBlock"]:has(.st-key-mov_text) {{ flex-wrap: nowrap !important; gap: .5rem !important; }}
+  [data-testid="stHorizontalBlock"]:has(.st-key-mov_text) > [data-testid="stColumn"]:first-child {{
+    flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; }}
+  [data-testid="stHorizontalBlock"]:has(.st-key-mov_text) > [data-testid="stColumn"]:last-child {{
+    flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; }}
   [data-testid="stHorizontalBlock"]:has(.st-key-cal_prev) > [data-testid="stColumn"] {{
     width: auto !important; min-width: 0 !important; flex: 0 0 auto !important; }}
   [data-testid="stHorizontalBlock"]:has(.st-key-cal_prev) > [data-testid="stColumn"]:nth-child(3) {{ flex: 1 1 0 !important; }}
@@ -457,6 +508,11 @@ _GLASS = ("background: linear-gradient(160deg, rgba(255,255,255,0.13) 0%, rgba(2
           "border: 1px solid rgba(255,255,255,0.18) !important; box-shadow: var(--as-shadow) !important;")
 GLASS_CSS = f"""
 <style>
+/* barra in basso del telefono: vetro scuro, leggibile sopra qualsiasi sfondo */
+.st-key-as_bottomnav {{ background: rgba(16,18,50,0.90) !important; -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%); border-top: 1px solid rgba(255,255,255,0.16) !important; }}
+/* pillole delle categorie: fondo scuro dietro al testo colorato, così si leggono anche sopra il rosa e il viola */
+.as-row .pill {{ background: rgba(10,12,40,0.50) !important; border: 1px solid rgba(255,255,255,0.14); }}
 .stApp {{ background: #0F1230 !important; color: var(--as-ink); isolation: isolate; }}
 [data-testid="stAppViewContainer"] {{ background: transparent !important; color: var(--as-ink); }}
 .stApp::before {{ content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--as-bg); }}
@@ -482,12 +538,12 @@ div[role="dialog"] {{ background: linear-gradient(160deg, rgba(40,44,96,0.86), r
 [class*="st-key-card_"], .as-grad {{ position: relative; }}
 [class*="st-key-card_"]::before {{ content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   background: linear-gradient(115deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 28%); opacity: .55; }}
-/* card colorate: vetro tinto */
-.as-grad {{ background: linear-gradient(135deg, color-mix(in srgb, var(--g1) 58%, transparent),
-  color-mix(in srgb, var(--g2) 34%, transparent)) !important; -webkit-backdrop-filter: blur(22px) saturate(180%);
-  backdrop-filter: blur(22px) saturate(180%); border: 1px solid rgba(255,255,255,0.26);
-  box-shadow: 0 12px 34px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.40) !important; }}
-.as-grad::after {{ background: rgba(255,255,255,0.10); }} .as-grad::before {{ background: rgba(255,255,255,0.07); }}
+/* card dei numeri: vetro appena tinto del loro colore */
+.as-grad {{ background: linear-gradient(160deg, color-mix(in srgb, var(--g1) 22%, transparent),
+  rgba(255,255,255,0.06) 70%) !important; -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%); border: 1px solid rgba(255,255,255,0.22);
+  box-shadow: 0 12px 34px rgba(0,0,0,0.26), inset 0 1px 0 rgba(255,255,255,0.32) !important; }}
+.as-grad .l {{ color: #fff; }}
 .as-focus-top {{ background: linear-gradient(135deg, rgba(167,139,250,0.55), rgba(196,181,253,0.25)) !important;
   border: 1px solid rgba(255,255,255,0.26); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }}
@@ -593,7 +649,7 @@ def plotly_config() -> dict:
 def chart(fig, height: int | None = None, legend: bool = True) -> None:
     """Stile comune a tutti i grafici plotly: niente sfondo, barre arrotondate, griglia leggera."""
     fig.update_layout(
-        height=height or fig.layout.height or 340, margin=dict(l=0, r=0, t=28 if fig.layout.title.text else 8, b=0),
+        height=height or fig.layout.height or 340, margin=dict(l=6, r=0, t=28 if fig.layout.title.text else 8, b=0),
         font=dict(family=FONT_BODY, size=12),
         title_font=dict(family=FONT_DISPLAY, size=15),
         separators=".," if i18n.is_en() else ",.",  # italiano: virgola per i decimali, punto per le migliaia
@@ -607,7 +663,7 @@ def chart(fig, height: int | None = None, legend: bool = True) -> None:
     fig.update_xaxes(showgrid=False, zeroline=False, showline=False, ticks="", title=None, tickangle=0,
                      automargin=True)
     fig.update_yaxes(gridcolor="rgba(150,140,190,0.16)", griddash="dot", zeroline=False, showline=False,
-                     ticks="", title=None)
+                     ticks="", title=None, automargin=True)
     st.plotly_chart(fig, width="stretch", config=plotly_config())
 
 
@@ -677,13 +733,10 @@ def _date_chip(day: str, date_txt: str) -> bool:
 
 
 def header(title: str, subtitle: str | None = None) -> None:
-    """Barra superiore: titolo e sottotitolo a sinistra; a destra la data e l'avatar, che apre il menu del profilo
-    (Profilo, Importa estratti, Collega banche, Impostazioni)."""
-    from datetime import date
-
+    """Barra superiore: titolo e sottotitolo a sinistra; a destra la ricerca, la campanella degli avvisi e l'avatar,
+    che apre il menu del profilo (Profilo, Importa estratti, Collega banche, Impostazioni)."""
     from views import nav
 
-    today = date.today()
     sub = f"<p>{e(subtitle)}</p>" if subtitle else ""
     name = profile_name()
     a, b = avatar_colors()
@@ -696,20 +749,16 @@ def header(title: str, subtitle: str | None = None) -> None:
         from views import cerca
         with st.container(key="as_search_box", width="content"):
             cerca.box()
-        if "calendario" in nav.PAGES:
-            # la data di oggi è una scorciatoia per il calendario del mese in corso
-            if _date_chip(i18n.weekday(today.weekday()), f"{today:{i18n.strf()}}"):
-                st.session_state["cal_month"] = today.replace(day=1)
-                st.switch_page(nav.PAGES["calendario"])
-        else:
-            st.html(f'<div class="as-date"><b>{i18n.weekday(today.weekday())}</b><span>{today:{i18n.strf()}}</span></div>',
-                    width="content")
+        if "avvisi" in nav.PAGES:
+            # campanella degli avvisi, con il numero di quelli da guardare
+            n = int(getattr(nav, "ALERTS", 0) or 0)
+            with st.container(key="as_bell_on" if n else "as_bell", width="content"):
+                st.page_link(nav.PAGES["avvisi"], label=str(n) if n else t("Avvisi"), icon=":material/notifications:")
         with st.container(key="as_me", width="content"):
             with st.popover(initials_of(name), help=t("Profilo e impostazioni")):
                 st.html(f'''<div class="as-me-head"><div class="as-avatar big" style="background:linear-gradient(135deg,{a},{b})">
 {e(initials_of(name))}</div><div><b>{e(name or t("Il tuo profilo"))}</b><span>{e(sub_me)}</span></div></div>''')
                 for key, label, icon in (("profilo", "Profilo e conti", ":material/person:"),
-                                         ("carte", "Carte", ":material/credit_card:"),
                                          ("importa", "Importa estratti", ":material/upload_file:"),
                                          ("banche", "Collega banche", ":material/account_balance:"),
                                          ("impostazioni", "Impostazioni", ":material/tune:"),
@@ -806,6 +855,7 @@ def gradient_cards(items: list[dict], key: str | None = None) -> str | None:
             w = None if it.get("pct") is None else max(0.0, min(100.0, float(it["pct"])))
             data.append({"id": str(it.get("id", it["label"])), "label": it["label"], "sub": it.get("sub") or "",
                          "value": it["value"], "g1": a, "g2": b, "pct": w,
+                         "tone": it.get("tone") if it.get("tone") in ("neg", "pos") else "",
                          "pct_label": it.get("pct_label", f"{w:.0f}%" if w is not None else ""),
                          "foot": list(it["foot"]) if it.get("foot") else None})
         global _grads_component
@@ -825,8 +875,10 @@ def gradient_cards(items: list[dict], key: str | None = None) -> str | None:
                     f'<b>{e(it.get("pct_label", f"{w:.0f}%"))}</b></div>')
         sub = f'<div class="s">{e(it["sub"])}</div>' if it.get("sub") else ""
         foot = (f'<div class="f">{e(it["foot"][0])} <b>{e(it["foot"][1])}</b></div>' if it.get("foot") else "")
-        cells.append(f'<div class="as-grad" style="--g1:{a};--g2:{b};background:linear-gradient(135deg,{a},{b})">'
-                     f'<div class="l">{e(it["label"])}</div>{sub}<div class="v">{e(it["value"])}</div>{foot}{prog}</div>')
+        tone = it.get("tone") if it.get("tone") in ("neg", "pos") else ""
+        cells.append(f'<div class="as-grad" style="--g1:{a};--g2:{b}">'
+                     f'<div class="l">{e(it["label"])}</div>{sub}<div class="v {tone}">{e(it["value"])}</div>'
+                     f'{foot}{prog}</div>')
     st.html(f'<div class="as-grads">{"".join(cells)}</div>')
     return None
 
@@ -844,7 +896,7 @@ export default function(component) {
     const c = el('div', 'as-bitem');
     c.innerHTML = it.html;            // carta già pronta (testo protetto lato server)
     const m = el('div', 'as-bmeta');
-    m.appendChild(el('div', 'v', it.value));
+    if (it.value) m.appendChild(el('div', 'v', it.value));   // senza saldo sincronizzato: niente numero
     if (it.sub) m.appendChild(el('div', 's', it.sub));
     if (it.foot) { const f = el('div', 'f', it.foot[0] + ' '); f.appendChild(el('b', '', it.foot[1])); m.appendChild(f); }
     c.appendChild(m);
@@ -885,10 +937,9 @@ export default function(component) {
   for (const it of data.items) {
     const c = el('div', 'as-grad');
     c.style.setProperty('--g1', it.g1); c.style.setProperty('--g2', it.g2);
-    c.style.background = 'linear-gradient(135deg,' + it.g1 + ',' + it.g2 + ')';
     c.appendChild(el('div', 'l', it.label));
     if (it.sub) c.appendChild(el('div', 's', it.sub));
-    c.appendChild(el('div', 'v', it.value));
+    c.appendChild(el('div', 'v' + (it.tone ? ' ' + it.tone : ''), it.value));
     if (it.foot) { const f = el('div', 'f', it.foot[0] + ' '); f.appendChild(el('b', '', it.foot[1])); c.appendChild(f); }
     if (it.pct !== null && it.pct !== undefined) {
       const p = el('div', 'p'); const bar = el('div', 'bar'); const sp = el('span');
@@ -1104,7 +1155,13 @@ export default function(component) {
   root.className = 'as-list' + (data.clickable ? ' as-click' : '');
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls;
                                     if (text !== undefined) n.textContent = text; return n; };
+  let lastDay = null;
   for (const r of data.rows) {
+    if (r.day && r.day !== lastDay) {           // intestazione del giorno (elenco raggruppato per data)
+      const h = el('div', 'as-day'); h.appendChild(el('span', '', r.day));
+      if (r.day_total) h.appendChild(el('span', 'tot', r.day_total));
+      root.appendChild(h); lastDay = r.day;
+    }
     const row = el('div', 'as-row');
     const ink = 'color-mix(in srgb, ' + r.color + ' 62%, var(--as-ink))';  // testo leggibile anche su colori chiari
     const av = el('div', 'av', r.ini); av.style.background = r.soft; av.style.color = ink; row.appendChild(av);
@@ -1158,13 +1215,29 @@ def _is_split(r) -> bool:
     return False
 
 
+def _day_label(d) -> str:
+    from datetime import date, timedelta
+    day = d.date() if hasattr(d, "date") else d
+    today = date.today()
+    if day == today:
+        return t("Oggi")
+    if day == today - timedelta(days=1):
+        return t("Ieri")
+    txt = f"{i18n.weekday(day.weekday(), short=True)} {i18n.day_month(day)}"
+    return txt + (f" {day.year}" if day.year != today.year else "")
+
+
 def tx_list(df: pd.DataFrame, fmt_amount, colors: dict[str, str], base: str, key: str,
-            clickable: bool = True) -> int | None:
+            clickable: bool = True, group_days: bool = False) -> int | None:
     """Elenco movimenti: iniziali, descrizione, data e conto, categoria, importo (e controvalore se in valuta).
+    Con group_days i movimenti sono raggruppati per giorno (intestazione con la data e le spese del giorno).
     Cliccando (o premendo Invio) su una riga ritorna l'id del movimento, una sola volta per clic."""
     from core import db
 
     labels = db.category_labels()
+    day_tot = {}
+    if group_days and not df.empty and "spesa" in df.columns:
+        day_tot = df.groupby(df["date"].dt.date)["spesa"].sum().to_dict()
     rows = []
     for _, r in df.iterrows():
         d = r["date"]
@@ -1186,6 +1259,11 @@ def tx_list(df: pd.DataFrame, fmt_amount, colors: dict[str, str], base: str, key
             "sub": sub,
             "cls": "pos" if (amt > 0 and r.get("kind") == "entrata") else "",
         })
+        if group_days and pd.notna(d):
+            spent = float(day_tot.get(d.date(), 0) or 0)
+            rows[-1]["day"] = _day_label(d)
+            rows[-1]["day_total"] = fmt_amount(-spent, base) if spent > 0.005 else ""
+            rows[-1]["meta"] = str(r["account"]) + (t(", diviso") if _is_split(r) else "")
     sel = item_list(rows, key=key, clickable=clickable)
     return int(sel) if sel is not None else None
 

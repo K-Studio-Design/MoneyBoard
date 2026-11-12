@@ -34,6 +34,8 @@ def _bars(rows: list[dict], base: str, current: bool) -> None:
         name = labels.get(r["category"], r["category"]) if r["category"] else t("Spese totali")
         dot = style.safe_color(colors.get(r["category"], style.ACCENT)) if r["category"] else style.ACCENT
         col = _color(r["pct"])
+        if current and r["left"] >= 0 and r["projected"] > r["budget"] * 1.02:
+            col = _color(max(r["pct"], 80.0))   # al ritmo attuale lo superi: arancione anche se ora sei sotto
         if r["left"] < 0:
             note = t("superato di {v}", v=ui.money(-r["left"], base))
         elif current and r["days_left"]:
@@ -67,13 +69,13 @@ def _editor(fr: pd.DataFrame, base: str) -> None:
     src["media"] = pd.to_numeric(src["media"], errors="coerce")
     ver = st.session_state.setdefault(VER, 0)
     ed = st.data_editor(
-        src, hide_index=True, width="stretch", num_rows="fixed", key=f"bud_editor_{ver}",
+        src, hide_index=True, placeholder="–", width="stretch", num_rows="fixed", key=f"bud_editor_{ver}",
         column_config={
             "category": None,
             "label": st.column_config.TextColumn(t("Categoria"), disabled=True),
             "budget": st.column_config.NumberColumn(t("Budget al mese ({ccy})", ccy=base), min_value=0.0, step=10.0,
-                                                    format="%.2f", help=t("Vuoto = nessun budget per questa categoria")),
-            "media": st.column_config.NumberColumn(t("Media ultimi 3 mesi"), format="%.0f", disabled=True),
+                                                    format="localized", help=t("Vuoto = nessun budget per questa categoria")),
+            "media": st.column_config.NumberColumn(t("Media ultimi 3 mesi"), format="localized", disabled=True),
         })
     tot_cur = budgets.total()
     tot = st.number_input(t("Budget per il totale delle spese ({ccy}, facoltativo)", ccy=base), min_value=0.0,

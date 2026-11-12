@@ -53,7 +53,7 @@ def _detail(pid: int, bal: pd.DataFrame) -> None:
         st.session_state.pop(SEL, None)
         return
     name = str(row["name"].iloc[0])
-    st.subheader(name)
+    st.subheader(ui.md(name))
     mine = bal[(bal["person_id"] == pid) & bal["currency"].notna()]
     for _, r in mine.iterrows():
         v = float(r["balance"])

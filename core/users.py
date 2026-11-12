@@ -387,6 +387,11 @@ def _inside(p: Path, d: Path) -> bool:
     return p == d or d in p.parents
 
 
+def is_inside(path: Path | str, folder: Path | str) -> bool:
+    """La cartella `path` è `folder` o una sua sottocartella (percorsi normalizzati)."""
+    return _inside(_norm(path), _norm(folder))
+
+
 def admin_data_dir() -> Path:
     custom = os.environ.get("APP_SPESE_DATA")
     if custom:
@@ -413,7 +418,12 @@ def _settings_dirs(data: Path) -> list[Path]:
 def owned_dirs(uid: str) -> list[Path]:
     """Cartelle di un utente: database, estratti, backup (quelle predefinite stanno dentro la cartella dati)."""
     d = admin_data_dir() if uid == ADMIN else data_dir(uid)
-    return [d] + _settings_dirs(d)
+    extra = _settings_dirs(d)
+    if uid != ADMIN:
+        # per un utente valgono solo le cartelle dentro la sua (le altre l'app le ignora, vedi storage._chosen_dir)
+        own = _norm(default_dir(uid))
+        extra = [x for x in extra if _inside(_norm(x), own)]
+    return [d] + extra
 
 
 def folder_conflict(uid: str, path: Path | str) -> str | None:
@@ -424,7 +434,12 @@ def folder_conflict(uid: str, path: Path | str) -> str | None:
     root = _norm(db.root_data_dir())
     uroot = _norm(users_root())
     own_default = _norm(admin_data_dir() if uid == ADMIN else default_dir(uid))
-    if uid != ADMIN and _inside(p, own_default):
+    if uid != ADMIN and not _inside(p, own_default):
+        # l'app gira con l'account di Windows del proprietario: una cartella fuori dalla propria permetterebbe a un
+        # utente di leggere (e spostare) i file del proprietario. Gli utenti restano nella loro cartella dei dati.
+        return t("per sicurezza ogni utente può usare solo la sua cartella dei dati ({path}) e le sue sottocartelle",
+                 path=default_dir(uid))
+    if uid != ADMIN:
         pass  # la propria cartella predefinita (e le sue sottocartelle) è sempre permessa
     elif _inside(p, uroot):
         return t("è una cartella riservata agli altri utenti dell'app")

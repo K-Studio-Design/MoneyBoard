@@ -55,14 +55,31 @@ def onedrive_candidates() -> list[Path]:
     return list(dict.fromkeys(out))
 
 
+def _chosen_dir(key: str) -> Path | None:
+    """Cartella scelta per estratti o backup. Per un utente che non è l'amministratore vale solo se sta dentro la
+    sua cartella dei dati: una scelta fatta prima di questa regola (per esempio una cartella del proprietario)
+    viene ignorata e si torna a quella predefinita."""
+    v = (db.get_setting(key, "") or "").strip()
+    if not v:
+        return None
+    p = Path(v).expanduser()
+    if db.is_admin():
+        return p
+    from core import users
+    try:
+        uid = db.current_user()
+        ok = users.is_inside(p, users.default_dir(uid))
+    except Exception:
+        ok = False
+    return p if ok else None
+
+
 def import_dir() -> Path:
-    v = (db.get_setting(IMPORT_DIR_KEY, "") or "").strip()
-    return Path(v).expanduser() if v else db.get_data_dir() / "Estratti da importare"
+    return _chosen_dir(IMPORT_DIR_KEY) or db.get_data_dir() / "Estratti da importare"
 
 
 def backup_dir() -> Path:
-    v = (db.get_setting(BACKUP_DIR_KEY, "") or "").strip()
-    return Path(v).expanduser() if v else db.get_data_dir() / "Backup"
+    return _chosen_dir(BACKUP_DIR_KEY) or db.get_data_dir() / "Backup"
 
 
 def import_auto() -> bool:

@@ -52,7 +52,8 @@ def _body(tx_id: int) -> None:
     if kind == "neutro":
         st.caption(t("Movimento neutro (trasferimento tra conti o investimento): non conta nelle spese né nelle entrate."))
     if r.get("notes"):
-        st.caption(t("Nota: {nota}", nota=r["notes"]))
+        # testo semplice (la nota può arrivare dalla banca): niente link, immagini o formattazione
+        st.html(f'<div class="as-note">{style.e(t("Nota: {nota}", nota=r["notes"]))}</div>')
 
     # ---- stesso esercente
     key = merchant_key(r["description"])
@@ -186,7 +187,7 @@ def _split_section(r, tx_id: int) -> None:
     src = pd.DataFrame({"categoria": [labels.get(r["category"], r["category"]), None],
                         "importo": [total, None], "nota": ["", ""]})
     ed = st.data_editor(
-        src, hide_index=True, num_rows="dynamic", width="stretch", key=f"fx_split_{tx_id}",
+        src, hide_index=True, placeholder="–", num_rows="dynamic", width="stretch", key=f"fx_split_{tx_id}",
         column_config={
             "categoria": st.column_config.SelectboxColumn(t("Categoria"), options=list(labels.values()), width="medium"),
             "importo": st.column_config.NumberColumn(t("Importo ({ccy})", ccy=r["currency"]), min_value=0.0,

@@ -8,6 +8,35 @@ from views import cerca, lingua, style, ui
 KINDS = ["uscita", "entrata", "neutro"]
 
 
+def _network_box() -> None:
+    """Accesso dagli altri dispositivi della rete (solo l'amministratore; vale dal prossimo avvio)."""
+    from core import network
+    on = network.lan_enabled()
+    new = st.toggle(t("Accesso dagli altri dispositivi della rete (telefono, tablet…)"), value=on, key="set_lan",
+                    help=t("Spento: l'app si apre solo da questo computer (più sicuro). Acceso: si apre anche dagli "
+                           "altri dispositivi collegati alla stessa rete di casa, con nome utente e password. "
+                           "Vale dal prossimo avvio con avvia_app."))
+    if new != on:
+        try:
+            network.set_lan(new)
+        except OSError as e:
+            st.error(t("Impostazione non salvata: {err}", err=e))
+        else:
+            on = new
+    live = network.listening_on_network()
+    if on and live:
+        ip = network.local_ip()
+        st.caption(t("Dagli altri dispositivi apri {url}. Attivalo solo sulla rete di casa: in una rete pubblica o "
+                     "di lavoro chiunque potrebbe vedere la pagina di accesso.",
+                     url=f"`http://{ip}:{network.port()}`" if ip else t("l'indirizzo di questo computer")))
+    elif on:
+        st.caption(t("Attivo dal prossimo avvio: chiudi l'app e riaprila con avvia_app."))
+    elif live:
+        st.warning(t("In questo momento l'app è raggiungibile anche dagli altri dispositivi della rete (è stata "
+                     "avviata così). Dal prossimo avvio con avvia_app si aprirà solo da questo computer."),
+                   icon=":material/wifi:")
+
+
 def render():
     style.header(t("Impostazioni"))
     tab1, tab2, tab3, tab4, tab5 = st.tabs([t("Generali"), t("Categorie"), t("Regole automatiche"),
@@ -38,6 +67,8 @@ def render():
             if upd != updates.enabled():
                 db.set_setting(updates.ENABLED_KEY, "1" if upd else "0")
                 st.session_state.pop("_update_notice", None)
+        if not demo_mode.enabled() and db.is_admin():
+            _network_box()
         if st.button(t("Ricalcola cambi mancanti")):
             with st.spinner(t("Ricalcolo…")):
                 ok, fail = fx.recompute_missing_or_all(all_rows=False)
@@ -53,7 +84,7 @@ def render():
         src.columns = ["orig", "icon", "name", "name_en", "kind", "color"]
         src["name_en"] = src["name_en"].map(lambda v: v if isinstance(v, str) else "")
         ed = st.data_editor(
-            src, hide_index=True, width="stretch", num_rows="dynamic", key="cat_editor",
+            src, hide_index=True, placeholder="–", width="stretch", num_rows="dynamic", key="cat_editor",
             column_config={
                 "orig": None,
                 "icon": st.column_config.TextColumn(t("Icona"), width="small"),
@@ -79,7 +110,12 @@ def render():
             ed = ed[ed["name"] != ""]
             final_names = [n.lower() for n in ed["name"]]
             shown_en = [(e or n).lower() for n, e in zip(ed["name"], ed["name_en"])]
-            if len(final_names) != len(set(final_names)):
+            bad_colors = [str(c) for c in ed["color"] if _txt(c) and db.clean_color(c) == db.DEFAULT_COLOR
+                          and _txt(c).lower().lstrip("#") not in ("888", "888888")]
+            if bad_colors:
+                st.error(t("Colore non valido: {c}. Scrivi il colore come #RRGGBB (es. #F0627E) oppure lascia vuoto.",
+                           c=", ".join(bad_colors[:3])))
+            elif len(final_names) != len(set(final_names)):
                 st.error(t("Ci sono nomi di categoria duplicati: correggili prima di salvare."))
             elif len(shown_en) != len(set(shown_en)):
                 st.error(t("Ci sono nomi inglesi duplicati (o uguali al nome di un'altra categoria): correggili prima "
@@ -100,7 +136,7 @@ def render():
                     orig = r["orig"] if isinstance(r["orig"], str) and r["orig"] else None
                     if orig and orig != name:
                         db.rename_category(orig, name)
-                    db.upsert_category(name, kind, r["icon"] or "", r["color"] or "#888888",
+                    db.upsert_category(name, kind, r["icon"] or "", db.clean_color(r["color"]),
                                        name_en=r["name_en"] if r["name_en"] != name else "")
                 for e in errors:
                     st.warning(e)
@@ -130,7 +166,7 @@ def render():
                          | rules["category"].str.contains(search, case=False, regex=False)]
         view = view.copy()
         view.insert(0, "elimina", False)
-        ed = st.data_editor(view, hide_index=True, width="stretch", key="rules_ed",
+        ed = st.data_editor(view, hide_index=True, placeholder="–", width="stretch", key="rules_ed",
                             disabled=["id", "keyword", "category", "priority"],
                             column_config={"id": None, "elimina": st.column_config.CheckboxColumn("🗑️"),
                                            "keyword": t("Parola chiave"), "category": t("Categoria"),

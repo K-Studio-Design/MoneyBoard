@@ -4,7 +4,7 @@
 Track spending, income, subscriptions, savings goals and investments in a clean dashboard. No cloud account,
 no servers: all your data stays in a local database on your own machine.
 
-*Made by **K Studio Design** in Italy · version 1.3.1 · free for personal and noncommercial use
+*Made by **K Studio Design** in Italy · version 1.4.0 · free for personal and noncommercial use
 ([PolyForm Noncommercial 1.0.0](LICENSE.md)) · [Leggi in italiano](README.it.md)*
 
 **▶ [Try the live demo](https://moneyboard-demo.streamlit.app)** — no install, no sign-up, made-up data.
@@ -15,8 +15,8 @@ no servers: all your data stays in a local database on your own machine.
 
 ## Features
 
-- **Overview**: this month's spending and income compared with last month, the last 12 months, spending by
-  category and a month-end forecast.
+- **Overview**: your account balance today, this month's spending and income compared with last month, the last
+  12 months, spending by category and a month-end forecast.
 - **Transactions**: add, edit, filter and export to CSV. Categories are assigned automatically by hundreds of built-in
   keywords plus your own rules. Click any transaction to see how often and how much you spend there.
 - **Budgets**: a monthly cap per category (and for total spending), with progress bars, a daily allowance for the
@@ -28,7 +28,7 @@ no servers: all your data stays in a local database on your own machine.
 - **Analysis**: any period you like, with totals, averages, savings rate, trends, top merchants and a
   months × categories table.
 - **Calendar**: each day colored by how much you spent, plus the charges expected in the coming days.
-- **Subscriptions**: recurring payments are detected automatically, with monthly and yearly cost, next charge
+- **Recurring**: recurring payments are detected automatically, with monthly and yearly cost, next charge
   and price changes.
 - **Salary schedule**: tell the app when you get paid (last or first working day, any days of the month such as
   the 15th and the 31st, every week or every 2 weeks, with Italian or US holidays), and it predicts your next
@@ -97,7 +97,8 @@ You need **Python 3.10 or newer**.
    administrator. There are no default accounts or passwords.
 4. Pick your language (IT / EN) and import your first bank statement from the avatar menu → **Import statements**.
 
-Manual start on any system: `pip install -r requirements.txt`, then `streamlit run app.py`.
+Manual start on any system: `pip install -r requirements.txt`, then
+`streamlit run app.py --server.address localhost` (so the app opens only on your computer).
 To update the packages, run `avvia_app.bat aggiorna` or `./avvia_app.sh aggiorna`.
 
 ## Privacy and security
@@ -106,7 +107,15 @@ To update the packages, run `avvia_app.bat aggiorna` or `./avvia_app.sh aggiorna
   By default this is `AppSpese_dati` in your user folder, outside the app folder. You can move the data folder
   and set up automatic backups from Settings → Folders & backup.
 - Passwords are never stored. The app keeps only a salted PBKDF2-SHA256 hash (300,000 iterations). After 5 wrong
-  attempts, sign-in is locked for one minute.
+  attempts, sign-in for that username is locked for one minute (other users can still sign in).
+- Passwords the app has to remember (email, crypto exchange API keys) are stored **encrypted**. The key lives in the
+  data folder and is not included in backups; if you open the database on another computer, the app asks for them
+  again.
+- By default the app opens **only on the computer it runs on**. To use it from your phone or tablet on your home
+  network, turn on *Settings → General → Access from other devices on the network* and restart it with `avvia_app`:
+  the page shows the address to open. Don't turn it on on public or work networks.
+- Every user created by the administrator can use only their own data folder (database, statements, backups), so
+  they can't read or move other people's files.
 - The app goes online only for:
   - exchange rates (ECB via Frankfurter, Yahoo Finance);
   - security prices (Yahoo Finance);

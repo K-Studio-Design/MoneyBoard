@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import math
 import re
 
 import pandas as pd
@@ -15,6 +16,8 @@ def _clean(col) -> str:
 
 
 def read_any(file_bytes: bytes, filename: str, header=0) -> pd.DataFrame:
+    from core import safezip
+    safezip.check(file_bytes)   # un .xlsx è un archivio: niente archivi enormi una volta aperti
     name = filename.lower()
     if name.endswith((".xlsx", ".xlsm")):
         return pd.read_excel(io.BytesIO(file_bytes), header=header, engine="openpyxl")
@@ -41,8 +44,9 @@ def parse_number(v) -> float | None:
     if v is None or (isinstance(v, float) and pd.isna(v)):
         return None
     if isinstance(v, (int, float)):
-        return float(v)
-    s = str(v).strip().replace("€", "").replace("EUR", "").replace("\xa0", "").replace(" ", "")
+        return float(v) if math.isfinite(float(v)) else None
+    s = (str(v).strip().replace("€", "").replace("EUR", "").replace("\xa0", "").replace(" ", "")
+         .replace("\u2212", "-"))   # segno meno tipografico (−) usato da alcune banche
     if s in ("", "-", "nan", "None"):
         return None
     neg = s.startswith("(") and s.endswith(")")
@@ -57,6 +61,8 @@ def parse_number(v) -> float | None:
     try:
         val = float(s)
     except ValueError:
+        return None
+    if not math.isfinite(val):   # «inf», «nan»: non sono importi
         return None
     return -val if neg else val
 
@@ -269,6 +275,8 @@ def parse_revolut_any(file_bytes: bytes, filename: str, include_pending: bool = 
     from core import revolut_consolidated as rc
 
     if filename.lower().endswith((".xlsx", ".xlsm")):
+        from core import safezip
+        safezip.check(file_bytes)
         raw = pd.read_excel(io.BytesIO(file_bytes), header=None, engine="openpyxl", nrows=60)
         if rc.is_consolidated(raw):
             return "consolidato", rc.parse(file_bytes, filename)

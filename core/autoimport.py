@@ -3,7 +3,9 @@
 All'avvio (e poi al massimo ogni 30 secondi mentre l'app è aperta) si guardano i file nella cartella:
 - si riconosce la banca dal contenuto (Fineco, Revolut consolidato o CSV, Chase CSV/QFX/OFX);
 - si importano i movimenti saltando quelli già presenti (stesso meccanismo anti-doppioni dell'import a mano);
-- il file viene spostato in «Importati/AAAA-MM», oppure in «Non riconosciuti» se non è un formato noto.
+- il file importato viene spostato in «Importati/AAAA-MM».
+Un file che non è un estratto conosciuto (o che non si riesce a leggere) resta dov'è, non viene toccato e non si
+riprova più finché non cambia: così una cartella con altri file (Documenti, Download…) non viene messa in disordine.
 Un file aperto in Excel (bloccato) resta dov'è e viene riprovato la volta dopo.
 """
 from __future__ import annotations
@@ -22,17 +24,47 @@ from core import chase, db, importers, storage
 SUPPORTED = (".xlsx", ".xlsm", ".xls", ".csv", ".qfx", ".ofx")
 DONE_DIR, UNKNOWN_DIR = "Importati", "Non riconosciuti"
 LOG_KEY = "autoimport_log"
+MAX_FILE = 50 * 1024 * 1024   # come il limite dei file caricati a mano
+SKIP_KEY = "autoimport_skip"   # {nome file: "dimensione|data di modifica"} dei file lasciati stare
 ACCOUNTS = {"fineco": "Fineco", "revolut": "Revolut", "chase_checking": "Chase", "chase_card": "Chase carta"}
 _last_scan = 0.0
+
+
+def _signature(p: Path) -> str:
+    try:
+        st = p.stat()
+        return f"{st.st_size}|{st.st_mtime_ns}"
+    except OSError:
+        return ""
+
+
+def _skipped() -> dict:
+    try:
+        v = json.loads(db.get_setting(SKIP_KEY, "{}") or "{}")
+        return v if isinstance(v, dict) else {}
+    except ValueError:
+        return {}
+
+
+def _remember_skip(p: Path) -> None:
+    """Il file non è un estratto (o non si legge): lo si lascia dov'è e non lo si guarda più finché non cambia."""
+    skip = _skipped()
+    skip[p.name] = _signature(p)
+    if len(skip) > 500:                      # elenco limitato: si tengono gli ultimi
+        skip = dict(list(skip.items())[-500:])
+    db.set_setting(SKIP_KEY, json.dumps(skip, ensure_ascii=False))
 
 
 def pending_files(folder: Path | None = None) -> list[Path]:
     folder = folder or storage.import_dir()
     if not folder.is_dir():
         return []
+    skip = _skipped()
     out = []
     for p in sorted(folder.iterdir()):
         if not p.is_file() or p.name.startswith(("~$", ".")) or p.suffix.lower() not in SUPPORTED:
+            continue
+        if p.name in skip and skip[p.name] == _signature(p):
             continue
         out.append(p)
     return out
@@ -128,6 +160,11 @@ def process_file(p: Path, folder: Path) -> dict:
     res = {"file": p.name, "when": datetime.now().isoformat(timespec="seconds"), "bank": "", "account": "",
            "inserted": 0, "skipped": 0, "status": "ok", "message": ""}
     try:
+        if p.stat().st_size > MAX_FILE:
+            res.update(status="sconosciuto")
+            _say(res, "file troppo grande per essere un estratto conto: lasciato dov'è")
+            _remember_skip(p)
+            return res
         data = p.read_bytes()
     except PermissionError:
         res.update(status="in uso")
@@ -137,14 +174,19 @@ def process_file(p: Path, folder: Path) -> dict:
         res.update(status="errore")
         _say(res, "{err}", err=e)
         return res
+    from core import safezip
+    try:
+        safezip.check(data)
+    except safezip.ArchiveTooBig as e:
+        res.update(status="errore")
+        _say(res, "{err}", err=e)
+        _remember_skip(p)
+        return res
     bank = detect(data, p.name)
     if not bank:
         res.update(status="sconosciuto")
-        _say(res, "formato non riconosciuto, spostato in «{folder}»", folder=UNKNOWN_DIR)
-        try:
-            _move(p, folder / UNKNOWN_DIR)
-        except OSError as e:
-            _say(res, " (spostamento non riuscito: {err})", append=True, err=e)
+        _say(res, "formato non riconosciuto: il file resta dov'è e non viene più controllato finché non cambia")
+        _remember_skip(p)
         return res
     if bank == "portafoglio":
         from core import positions
@@ -158,6 +200,7 @@ def process_file(p: Path, folder: Path) -> dict:
         except Exception as e:
             res.update(status="errore")
             _say(res, "lettura non riuscita: {err}", err=e)
+            _remember_skip(p)
             return res
         try:
             _move(p, folder / DONE_DIR / datetime.now().strftime("%Y-%m"))
@@ -175,9 +218,10 @@ def process_file(p: Path, folder: Path) -> dict:
             res.update(inserted=ins, skipped=skip)
         else:
             _say(res, "nessun movimento nel file")
-    except Exception as e:  # file rovinato o formato cambiato: lo si lascia lì e si segnala
+    except Exception as e:  # file rovinato o formato cambiato: lo si lascia lì, si segnala una volta sola
         res.update(status="errore")
         _say(res, "lettura non riuscita: {err}", err=e)
+        _remember_skip(p)
         return res
     try:
         dst = _move(p, folder / DONE_DIR / datetime.now().strftime("%Y-%m"))

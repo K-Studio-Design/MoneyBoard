@@ -552,6 +552,8 @@ def read_tables(data: bytes, filename: str) -> list[tuple[str, list[list]]]:
     """[(nome del foglio, righe)] per CSV/TXT ed Excel (tutti i fogli)."""
     name = filename.lower()
     if name.endswith((".xlsx", ".xlsm")) or data[:4] == b"PK\x03\x04":
+        from core import safezip
+        safezip.check(data)
         from openpyxl import load_workbook
         wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
         out = [(ws.title, [list(r) for r in ws.iter_rows(values_only=True)]) for ws in wb.worksheets]

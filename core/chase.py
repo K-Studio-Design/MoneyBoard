@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import re
 
 import pandas as pd
@@ -79,12 +80,14 @@ def _date_us(v) -> str | None:
 def _num(v) -> float | None:
     if v is None or (isinstance(v, float) and pd.isna(v)):
         return None
-    s = str(v).strip().replace("$", "").replace(",", "")
+    s = str(v).strip().replace("$", "").replace(",", "").replace("\u2212", "-")
     neg = s.startswith("(") and s.endswith(")")
     s = s.strip("()")
     try:
         x = float(s)
     except ValueError:
+        return None
+    if not math.isfinite(x):   # «inf», «nan»: non sono importi
         return None
     return -x if neg else x
 

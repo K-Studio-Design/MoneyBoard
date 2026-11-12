@@ -1,6 +1,7 @@
 """Funzioni di supporto condivise dalle pagine."""
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 
 import pandas as pd
@@ -33,6 +34,38 @@ def money(x: float | None, ccy: str | None = None, decimals: int = 2) -> str:
         sep = " " if len(sym) > 1 else ""
         return ("-" if x < 0 else "") + f"{sym}{sep}{fmt_num(abs(x), decimals)}"
     return f"{fmt_num(x, decimals)} {sym}"
+
+
+_FORMULA_START = ("=", "+", "@", "\t", "\r", "\n")
+
+
+def csv_cell(v):
+    """Testo sicuro da aprire in Excel: una cella che inizia con = + @ (o - seguito da una lettera) verrebbe letta
+    come formula; si mette davanti un apostrofo, così resta testo. I numeri non si toccano."""
+    if not isinstance(v, str) or not v:
+        return v
+    if v.startswith(_FORMULA_START) or (v[0] == "-" and len(v) > 1 and not (v[1].isdigit() or v[1] in " .,")):
+        return "'" + v
+    return v
+
+
+def csv_safe(df, cols: list[str]):
+    """Copia del DataFrame con le colonne di testo indicate rese sicure per Excel (vedi csv_cell)."""
+    out = df.copy()
+    for c in cols:
+        if c in out.columns:
+            out[c] = out[c].map(csv_cell)
+    return out
+
+
+def md(text) -> str:
+    """Testo scritto dall'utente o arrivato dalla banca, da mostrare in un testo markdown (st.caption, st.markdown,
+    st.subheader…) così com'è: niente link, immagini, grassetti o formule."""
+    s = str(text if text is not None else "")
+    for ch in "\\`*_[]()<>#!|~$":
+        s = s.replace(ch, "\\" + ch)
+    # niente collegamenti automatici agli indirizzi web (uno spazio invisibile li spezza)
+    return re.sub(r"(?i)(https?|ftp)(:)", "\\1\u200b\\2", s).replace("www.", "www\u200b.")
 
 
 def esc(text: str) -> str:
@@ -347,3 +380,25 @@ def _rules_json() -> str:
     rules = recurring.day_rules()
     rules.update(recurring.salary_rules())
     return json.dumps(rules, sort_keys=True)
+
+
+BOTTOM_NAV = (("dashboard", "Panoramica", ":material/space_dashboard:"),
+              ("spese", "Movimenti", ":material/receipt_long:"),
+              ("analisi", "Analisi", ":material/insights:"),
+              ("budget", "Budget", ":material/data_usage:"),
+              ("obiettivi", "Obiettivi", ":material/savings:"))
+
+
+def bottom_nav(current=None) -> None:
+    """Barra di navigazione in basso, visibile solo sullo schermo del telefono (la mostra il CSS): le pagine usate
+    più spesso a un tocco, senza aprire il menu laterale. current: la pagina aperta (evidenziata)."""
+    from views import nav
+    cur = getattr(current, "url_path", None)
+    with st.container(key="as_bottomnav", horizontal=True):
+        for key, label, icon in BOTTOM_NAV:
+            page = nav.PAGES.get(key)
+            if page is None:
+                continue
+            on = cur is not None and page.url_path == cur
+            with st.container(key=f"as_bn_{key}" + ("_on" if on else ""), width="stretch"):
+                st.page_link(page, label=t(label), icon=icon)
