@@ -6,7 +6,7 @@ import streamlit as st
 
 from core import crypto_ex, db, i18n, securities
 from core.i18n import t
-from views import cerca, inv_estratti, style, ui
+from views import cerca, icons, inv_estratti, style, ui
 
 
 def pf_columns(base: str) -> dict:
@@ -54,15 +54,22 @@ def _portfolio_tab(base: str):
     valued = pf.dropna(subset=[vcol]).copy()
     valued["Tipo"] = valued["Tipo"].map(lambda x: t(x) if x else x)
     if not valued.empty:
+        tot = float(valued[vcol].sum())
+        by_title = valued.groupby("Nome", sort=False)[vcol].sum().sort_values(ascending=False)
+        by_type = valued.groupby("Tipo")[vcol].sum().sort_values(ascending=False)
         with c1:
-            fig = px.pie(valued, names="Nome", values=vcol, hole=0.5, title=t("Allocazione per titolo"))
-            fig.update_layout(height=380, margin=dict(l=0, r=0, t=40, b=0))
-            style.chart(fig)
+            st.markdown(f"**{style.e(t('Allocazione per titolo'))}**")
+            style.donut([(str(n), float(v), style.SERIES[i % len(style.SERIES)])
+                         for i, (n, v) in enumerate(by_title.items())],
+                        t("Valore"), ui.money(tot), ui.money, limit=8, icons=None,
+                        others=t("Altri {n} titoli", n="{n}"), name="inv_pie_title")
         with c2:
-            fig = px.pie(valued.groupby("Tipo")[vcol].sum().reset_index(), names="Tipo", values=vcol, hole=0.5,
-                         title=t("Allocazione per tipo"))
-            fig.update_layout(height=380, margin=dict(l=0, r=0, t=40, b=0))
-            style.chart(fig)
+            st.markdown(f"**{style.e(t('Allocazione per tipo'))}**")
+            kinds = {t(k): icons.asset_icon(k) for k in securities.ASSET_TYPES}
+            style.donut([(str(n) or "–", float(v), style.SERIES[i % len(style.SERIES)])
+                         for i, (n, v) in enumerate(by_type.items())],
+                        t("Valore"), ui.money(tot), ui.money, limit=8, icons=kinds, others=t("Altri {n} tipi", n="{n}"),
+                        name="inv_pie_type")
 
     st.subheader(t("Andamento prezzo"))
     opts = {f"{r.Nome} ({r.Ticker})": r.Ticker for r in pf.itertuples() if r.Ticker}

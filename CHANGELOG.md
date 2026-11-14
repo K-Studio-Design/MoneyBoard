@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.5.1 (2026-11-14)
+
+**Donut charts**
+- Hovering a slice (or its row in the legend) lifts it above the others with a soft pop, and the centre of the
+  chart shows its name, amount and share. On a phone, tap a slice.
+- Large-enough slices show a small icon of their category (cart for groceries, house for rent, plane for travel,
+  and so on); slices that are too small for the icon to fit entirely inside them show none. Custom categories get
+  an icon from their name or emoji.
+- Clicking a slice in the Overview opens the category detail, like the legend.
+- The charts by currency (Analysis) and by holding and type (Investments) use the same donut, with currency and
+  asset-type icons.
+- Icons from Lucide (ISC license).
+
+## 1.5.0 (2026-11-14)
+
+**AI assistant (optional)**
+- New *Assistant* page: ask questions about your money in plain words ("where did I spend the most this month?",
+  "will I reach my goals?") and get answers from Claude, by Anthropic, based on your MoneyBoard data. Answers
+  appear as they're written.
+- It works with your own Anthropic API key (Claude Console → API keys), which you pay per use directly to
+  Anthropic: usually a few cents per question. The key is stored encrypted. Set it up from the Assistant page or
+  in *Settings → AI assistant*, where you also pick the model.
+- Nothing is sent until you agree. With each question the app sends a summary of your data (totals by month and
+  category, top merchants, budgets, goals, recurring payments, balances and, if you leave it on, the latest 80
+  transactions), never the database, files or passwords. The assistant is off in the online demo.
+
+**Animations**
+- Pages come in with a soft staggered rise, amounts count up to their value, progress bars and the small daily
+  charts in the summary cards grow, chart bars rise one after another and lines draw from left to right. Charts
+  animate only the first time and when their data changes, not at every click.
+- Tabs are a pill bar with a sliding highlight. Everything stays still if your system asks for reduced motion.
+
+**Look**
+- Overview: a "Today" badge with today's transactions, 30-day mini charts in the Spending and Income cards, and a
+  summary under the 12-month chart (income, spending, monthly average, saved).
+- Budget: a gauge with how much of the month's budget is spent, what's left, the month-end forecast and how much
+  you can spend per day.
+- Goals: the progress rings fill up when the page opens.
+
 ## 1.4.0 (2026-11-12)
 
 **Security**

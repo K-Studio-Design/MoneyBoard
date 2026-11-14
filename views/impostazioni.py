@@ -39,8 +39,8 @@ def _network_box() -> None:
 
 def render():
     style.header(t("Impostazioni"))
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([t("Generali"), t("Categorie"), t("Regole automatiche"),
-                                            t("Cartelle e backup"), t("Email e promemoria")],
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([t("Generali"), t("Categorie"), t("Regole automatiche"),
+                                                  t("Cartelle e backup"), t("Email e promemoria"), t("Assistente IA")],
                                            default=cerca.tab_default("impostazioni"))
 
     with tab1:
@@ -181,6 +181,12 @@ def render():
     with tab5:
         from views import notifiche
         notifiche.render_tab()
+
+    with tab6:
+        from views import assistente
+        st.caption(t("L'assistente risponde alle domande sui tuoi conti usando Claude di Anthropic, con la tua chiave "
+                     "API: si paga a consumo direttamente ad Anthropic."))
+        assistente.settings_panel("set_ai")
 
     with tab4:
         from views import cartelle

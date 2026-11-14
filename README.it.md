@@ -5,7 +5,7 @@
 App per gestire spese, entrate, abbonamenti, obiettivi di risparmio e investimenti, con i dati salvati **solo sul
 tuo computer** (nessun server, nessun account online). Interfaccia in italiano e in inglese.
 
-Fatta da **K Studio Design** in Italia · versione 1.4.0 · licenza
+Fatta da **K Studio Design** in Italia · versione 1.5.1 · licenza
 [PolyForm Noncommercial 1.0.0](LICENSE.md): gratuita per uso personale e non commerciale (vedi sotto).
 
 **▶ [Prova la demo online](https://moneyboard-demo.streamlit.app)**: niente installazione, niente registrazione, dati inventati (in inglese).
@@ -60,7 +60,8 @@ può accedere anche all'app: proteggi il computer con la sua password.
   la pagina mostra l'indirizzo da aprire. Non attivarlo su reti pubbliche o di lavoro.
 - L'app si collega a internet solo per: cambi valuta (BCE/Frankfurter, Yahoo Finance), quotazioni dei titoli
   (Yahoo Finance), e, solo se li configuri tu, le banche (Enable Banking), gli exchange crypto (API in sola
-  lettura) e il tuo server di posta (per le email). Una volta al giorno chiede a GitHub se c'è una versione nuova
+  lettura), il tuo server di posta (per le email) e l'API di Anthropic (per l'assistente IA: a ogni domanda manda
+  la conversazione e un riassunto dei dati, mai il database, i file o le password). Una volta al giorno chiede a GitHub se c'è una versione nuova
   (senza mandare nessun dato; si spegne in Impostazioni → Generali). Nessuna statistica d'uso viene inviata (anche
   quella di Streamlit è disattivata).
 - La funzione **Tasse USA** (Profilo → Funzioni in prova) è in **alpha**: è una stima, non una consulenza
@@ -147,7 +148,8 @@ Tutto si configura in *Impostazioni → Cartelle e backup* (menu dell'avatar in 
 | 🏦 Collega banche (menu dell'avatar) | Sincronizzazione automatica via Open Banking (Enable Banking) per Fineco, Revolut e altre banche UE |
 | 📈 Investimenti | Dividendi, ritenute, bollo e imposte sul capital gain letti dagli estratti (con le quote possedute), import dell'export del portafoglio titoli (colonne ISIN e Quantità), rendimento netto complessivo; titoli per ISIN (ticker trovato in automatico), operazioni di acquisto/vendita, prezzo medio, P/L latente e realizzato, grafici; saldi degli exchange crypto via API in sola lettura |
 | 💱 Valute | Convertitore (anche storico e crypto), grafico del cambio, tabella cambi |
-| ⚙️ Impostazioni (menu dell'avatar) | Valuta base, categorie, regole automatiche, backup |
+| ✨ Assistente (facoltativo) | Domande sui tuoi conti in parole semplici («dove ho speso di più questo mese?», «riuscirò a raggiungere i miei obiettivi?»), con le risposte di Claude di Anthropic basate sui tuoi dati. Serve la tua chiave API di Anthropic (Claude Console → API keys): si paga a consumo, di solito pochi centesimi a domanda. La chiave è salvata cifrata; prima del primo uso l'app chiede il consenso e spiega cosa manda. Spento nella demo online |
+| ⚙️ Impostazioni (menu dell'avatar) | Valuta base, categorie, regole automatiche, backup, email, assistente IA (chiave API e modello) |
 
 ### Categorie
 32 categorie predefinite (spesa alimentare, ristoranti e bar, casa, bollette, carburante, abbonamenti…),

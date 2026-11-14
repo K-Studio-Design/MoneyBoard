@@ -208,10 +208,11 @@ def _per_valuta(d):
     with c1:
         sp = tab[tab["spese_base"] > 0]
         if not sp.empty:
-            fig = px.pie(sp, names="currency", values="spese_base", hole=0.5,
-                         title=t("Peso delle spese per valuta (in {base})", base=base))
-            fig.update_layout(height=340, margin=dict(l=0, r=0, t=40, b=0))
-            style.chart(fig)
+            st.markdown(f"**{style.e(t('Peso delle spese per valuta (in {base})', base=base))}**")
+            style.donut([(r.currency, float(r.spese_base), style.SERIES[i % len(style.SERIES)])
+                         for i, r in enumerate(sp.itertuples())], t("Totale spese"),
+                        ui.money(sp["spese_base"].sum(), base), lambda v: ui.money(v, base), limit=8,
+                        icons="valute", others=t("Altre {n} valute", n="{n}"), name="an_ccy_pie")
     with c2:
         cats = (d[d["spesa_base"] != 0].groupby(["currency", "cat_label"])["spesa_base"].sum().reset_index())
         cats = cats[cats["spesa_base"] > 0]

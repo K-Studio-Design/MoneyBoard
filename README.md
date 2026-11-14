@@ -4,7 +4,7 @@
 Track spending, income, subscriptions, savings goals and investments in a clean dashboard. No cloud account,
 no servers: all your data stays in a local database on your own machine.
 
-*Made by **K Studio Design** in Italy · version 1.4.0 · free for personal and noncommercial use
+*Made by **K Studio Design** in Italy · version 1.5.1 · free for personal and noncommercial use
 ([PolyForm Noncommercial 1.0.0](LICENSE.md)) · [Leggi in italiano](README.it.md)*
 
 **▶ [Try the live demo](https://moneyboard-demo.streamlit.app)** — no install, no sign-up, made-up data.
@@ -55,6 +55,9 @@ no servers: all your data stays in a local database on your own machine.
 - **Themes and languages**: light, dark, automatic and "Liquid Glass" themes. The interface is in English or Italian.
 - **Phone friendly**: the layout adapts to small screens, so you can use it from your phone (for example with the
   app running on a NAS at home).
+- **AI assistant (optional)**: ask questions about your money in plain words and get answers from Claude, based on
+  your data. It uses your own Anthropic API key (pay per use, usually a few cents per question) and sends nothing
+  until you agree.
 - **Update notice**: the app tells you when a new version is published here (you can turn it off).
 
 ## Screenshots
@@ -121,6 +124,9 @@ To update the packages, run `avvia_app.bat aggiorna` or `./avvia_app.sh aggiorna
   - security prices (Yahoo Finance);
   - your bank and crypto exchanges, and only if you connect them yourself;
   - your email server, only if you turn on emails;
+  - Anthropic's API, only if you set up the AI assistant: with each question it sends the conversation and a
+    summary of your data (totals, budgets, goals, recurring payments, balances and, if you leave it on, the latest
+    transactions), never the database, files or passwords;
   - once a day, GitHub's public API to check for a new version (no app data is sent; it can be turned off in
     Settings → General).
 

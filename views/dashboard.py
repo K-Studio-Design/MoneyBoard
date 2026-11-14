@@ -14,12 +14,35 @@ def _cat_colors() -> dict[str, str]:
     return dict(zip(c["name"], c["color"]))
 
 
+def _today_badge(df: pd.DataFrame, today: date) -> str:
+    """Etichetta sopra il titolo: i movimenti di oggi."""
+    if df.empty:
+        return t("Oggi · nessun movimento")
+    d = df[df["date"].dt.date == today]
+    n, spent = len(d), float(d["spesa"].sum()) if "spesa" in d else 0.0
+    if not n:
+        return t("Oggi · nessun movimento")
+    txt = t("Oggi · 1 movimento") if n == 1 else t("Oggi · {n} movimenti", n=n)
+    return txt + (" · " + t("{v} spesi", v=ui.money(spent)) if spent > 0.005 else "")
+
+
+def _daily(df: pd.DataFrame, col: str, start: date, end: date) -> list[float]:
+    """Somma giorno per giorno di una colonna (spesa o entrata) tra start ed end compresi."""
+    d = ui.filter_period(df, start, end)
+    per_day = d.groupby(d["date"].dt.date)[col].sum() if not d.empty else pd.Series(dtype=float)
+    out, cur = [], start
+    while cur <= end:
+        out.append(float(per_day.get(cur, 0.0) or 0.0))
+        cur += timedelta(days=1)
+    return out
+
+
 def render():
     base = db.base_currency()
     disp = ui.display_ccy()
     today = date.today()
-    style.header(t("Panoramica"), ui.view_summary())
     df = ui.prepared_transactions()
+    style.header(t("Panoramica"), ui.view_summary(), badge=_today_badge(df, today))
 
     if df.empty:
         st.info(t("Non ci sono ancora movimenti. Importa gli estratti di Fineco e Revolut (menu dell'avatar in alto "
@@ -68,9 +91,9 @@ def render():
     sel = style.gradient_cards(key="dash_cards", items=([first] if first else []) + [
         dict(id="spese", label=t("Spese"), sub=t("{mese}, primi {n} giorni", mese=mese.capitalize(), n=today.day),
              value=ui.money(spese_m),
-             variant="spese", pct=p_sp, pct_label=l_sp),
+             variant="spese", pct=p_sp, pct_label=l_sp, spark=_daily(df, "spesa", today - timedelta(days=29), today)),
         dict(id="entrate", label=t("Entrate"), sub=f"{mese.capitalize()}", value=ui.money(entrate_m), variant="entrate",
-             pct=p_en, pct_label=l_en),
+             pct=p_en, pct_label=l_en, spark=_daily(df, "entrata", today - timedelta(days=29), today)),
     ] + ([] if first else [
         dict(id="saldo", label=t("Saldo del mese"), sub=saldo_sub,
              value=ui.money(saldo), variant="saldo", tone="neg" if saldo < 0 and entrate_m > 0 else "",
@@ -103,7 +126,12 @@ def render():
             fig.add_bar(x=m["Mese"], y=m["spesa"], name=t("Spese"), marker_color=style.SPESA,
                         hovertemplate="%{y:,.0f} " + disp + f"<extra>{t('Spese')}</extra>")
             fig.update_layout(barmode="group", bargroupgap=0.12)
-            style.chart(fig, height=440)
+            style.chart(fig, height=360)
+            n_m = max(len(m), 1)
+            st.html(style.chips([(ui.money(m["entrata"].sum()), t("Entrate in {n} mesi", n=len(m))),
+                                 (ui.money(m["spesa"].sum()), t("Spese in {n} mesi", n=len(m))),
+                                 (ui.money(m["spesa"].sum() / n_m), t("Spese medie al mese")),
+                                 (ui.money(m["entrata"].sum() - m["spesa"].sum()), t("Risparmiato"))]))
     with right, style.card("categorie"):
         st.subheader(t("Categorie di {mese}", mese=mese))
         cats = cur[cur["spesa"] != 0].groupby("cat_label")["spesa"].sum().sort_values(ascending=False)

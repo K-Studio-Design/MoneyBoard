@@ -10,9 +10,9 @@ st.set_page_config(page_title="MoneyBoard", page_icon=":material/account_balance
 
 from core import autoimport, autosync, db, demo, demo_mode, i18n, securities, storage, version  # noqa: E402
 from core.i18n import t  # noqa: E402
-from views import (abbonamenti, analisi, avvisi, banche, budget, calendario, carte, cartelle, condivise,  # noqa: E402
-                   dashboard, focus, importa, impostazioni, investimenti, lingua, login, nav, obiettivi, profilo, spese,
-                   style, tasse, theme, ui, utenti, valute)
+from views import (abbonamenti, analisi, assistente, avvisi, banche, budget, calendario, carte, cartelle,  # noqa: E402
+                   condivise, dashboard, focus, importa, impostazioni, investimenti, lingua, login, nav, obiettivi,
+                   profilo, spese, style, tasse, theme, ui, utenti, valute)
 
 db.init_db()
 
@@ -81,6 +81,8 @@ nav.PAGES.update(
                       default=True),
     spese=st.Page(spese.render, title=t("Movimenti"), icon=":material/receipt_long:", url_path="movimenti"),
     analisi=st.Page(analisi.render, title=t("Analisi"), icon=":material/insights:", url_path="analisi"),
+    assistente=st.Page(assistente.render, title=t("Assistente"), icon=":material/auto_awesome:",
+                       url_path="assistente"),
     budget=st.Page(budget.render, title=t("Budget"), icon=":material/data_usage:", url_path="budget"),
     condivise=st.Page(condivise.render, title=t("Spese condivise"), icon=":material/group:", url_path="condivise"),
     abbonamenti=st.Page(abbonamenti.render, title=t("Ricorrenti"), icon=":material/autorenew:", url_path="abbonamenti"),
@@ -91,7 +93,7 @@ nav.PAGES.update(
 )
 # menu: le spese di tutti i giorni, quello che si ripete, il patrimonio. Gli avvisi hanno la campanella in alto.
 pages = {
-    t("Spese"): [nav.PAGES[k] for k in ("dashboard", "spese", "analisi", "budget", "condivise")],
+    t("Spese"): [nav.PAGES[k] for k in ("dashboard", "spese", "analisi", "assistente", "budget", "condivise")],
     t("Pianifica"): [nav.PAGES[k] for k in ("calendario", "abbonamenti")],
     t("Patrimonio"): [nav.PAGES[k] for k in ("obiettivi", "investimenti", "valute")],
 }

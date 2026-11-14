@@ -6,6 +6,7 @@ a gradiente per i numeri principali, accento viola, pillole arrotondate. Tema sc
 from __future__ import annotations
 
 import html
+import math
 import re
 from datetime import date
 
@@ -20,12 +21,12 @@ PALETTE = {
     "light": {
         "bg": "#F3F2F9", "surface": "#FFFFFF", "field": "#F6F5FB", "line": "#ECEAF4", "ink": "#1F1D2B",
         "muted": "#8A879C", "accent": "#7C5CFC", "accent-soft": "rgba(124,92,252,0.10)", "spesa": "#E8577A",
-        "entrata": "#16A394", "track": "#EEECF6", "shadow": "0 8px 28px rgba(76,60,160,0.08)",
+        "entrata": "#16A394", "track": "#EEECF6", "shadow": "0 8px 28px rgba(76,60,160,0.08)", "on-ink": "#FFFFFF",
     },
     "dark": {
         "bg": "#13121A", "surface": "#1D1B27", "field": "#252333", "line": "#2B2938", "ink": "#ECEAF5",
         "muted": "#9B98AE", "accent": "#9C85FF", "accent-soft": "rgba(156,133,255,0.16)", "spesa": "#FF7A96",
-        "entrata": "#3CCFBD", "track": "#2A2837", "shadow": "0 8px 28px rgba(0,0,0,0.35)",
+        "entrata": "#3CCFBD", "track": "#2A2837", "shadow": "0 8px 28px rgba(0,0,0,0.35)", "on-ink": "#16141F",
     },
 }
 # tema "Liquid Glass": superfici traslucide sopra uno sfondo colorato, sfocato dietro al vetro
@@ -37,7 +38,7 @@ PALETTE["glass"] = {
            "linear-gradient(160deg, #0B1026 0%, #151036 55%, #1F0F2E 100%)"),
     "surface": "rgba(255,255,255,0.075)", "field": "rgba(255,255,255,0.10)", "line": "rgba(255,255,255,0.16)",
     "ink": "#F4F6FF", "muted": "rgba(236,239,255,0.70)", "accent": "#C4B5FD", "accent-soft": "rgba(255,255,255,0.14)",
-    "spesa": "#FF9DB0", "entrata": "#6EF0D2", "track": "rgba(255,255,255,0.16)",
+    "spesa": "#FF9DB0", "entrata": "#6EF0D2", "track": "rgba(255,255,255,0.16)", "on-ink": "#1A1F45",
     "shadow": "0 12px 40px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(255,255,255,0.06)",
 }
 GLASS_THEME_COLORS = {  # colori pieni per i widget nativi di Streamlit (il resto lo fa il CSS)
@@ -74,6 +75,132 @@ def rgba(hex_color: str, alpha: float) -> str:
 
 def safe_color(c) -> str:
     return c if _HEX.match(str(c)) else "#A3A0B5"
+
+
+# Script installato una volta sola nella pagina (gira nel browser):
+# - gli importi nei riquadri contano da 0 fino al valore quando compaiono, e dal valore vecchio al nuovo quando cambiano;
+# - i grafici si disegnano (classe «as-drawing») la prima volta che si vedono nella pagina o quando cambiano i dati,
+#   non a ogni aggiornamento.
+# Rispetta «riduci movimento» del sistema. Non tocca i dati: cambia solo il testo mostrato durante l'animazione e
+# alla fine rimette esattamente il testo originale.
+MOTION_JS = r"""
+(() => {
+  if (window.__asMotion) return;
+  const M = window.__asMotion = { last: new Map(), charts: new Map(), path: location.pathname };
+  const seen = new WeakMap(), busy = new WeakMap();
+  const reduce = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const SEL = '.as-grad .v, .as-kpi .v, .as-count';
+  const checkPath = () => {
+    if (location.pathname !== M.path) { M.path = location.pathname; M.last.clear(); M.charts.clear(); }
+  };
+  const parse = (txt) => {
+    const m = txt.match(/[-−]?\d[\d.,  ' ]*\d|[-−]?\d/);
+    if (!m) return null;
+    const pre = txt.slice(0, m.index), post = txt.slice(m.index + m[0].length);
+    if (/\d/.test(pre + post)) return null;              // date, intervalli, «3 di 5»: non si animano
+    let s = m[0]; const minus = /^[-−]/.test(s) ? s[0] : ''; s = s.replace(/^[-−]/, '');
+    let dec = '', grp = '', decimals = 0;
+    const li = Math.max(s.lastIndexOf(','), s.lastIndexOf('.'));
+    if (li >= 0) {
+      const ch = s[li], other = ch === ',' ? '.' : ',', tail = s.length - li - 1, count = s.split(ch).length - 1;
+      if (s.includes(other)) { dec = ch; grp = other; }
+      else if (count === 1 && tail !== 3) { dec = ch; }
+      else { grp = ch; }
+      if (dec) decimals = tail;
+    }
+    if (!grp) { const sp = s.match(/[  ' ]/); if (sp) grp = sp[0]; }
+    let clean = s; if (grp) clean = clean.split(grp).join(''); if (dec) clean = clean.replace(dec, '.');
+    const v = parseFloat(clean);
+    if (!isFinite(v)) return null;
+    return { val: minus ? -v : v, minus: minus || '-', dec, grp, decimals, pre, post };
+  };
+  const fmt = (p, v) => {
+    const fixed = Math.abs(v).toFixed(p.decimals); let [i, d] = fixed.split('.');
+    if (p.grp) i = i.replace(/\B(?=(\d{3})+(?!\d))/g, p.grp);
+    let out = i + (p.decimals ? (p.dec || '.') + d : '');
+    if (v < 0 && Number(fixed) !== 0) out = p.minus + out;
+    return p.pre + out + p.post;
+  };
+  const keyOf = (el) => {
+    const card = el.closest('.as-grad, .as-kpi, .as-chip, [data-as-key]');
+    const lab = card ? ((card.querySelector('.l, span') || {}).textContent || '') : '';
+    const sib = card && card.parentElement ? Array.prototype.indexOf.call(card.parentElement.children, card) : -1;
+    return M.path + '|' + lab + '|' + sib + '|' + (el.dataset.asKey || '');
+  };
+  const count = (el) => {
+    if (el.children.length) return;
+    const txt = el.textContent, st = busy.get(el);
+    if (st && (st.cur === txt || st.final === txt)) return;
+    const p = parse(txt); if (!p) return;
+    const k = keyOf(el), prev = M.last.get(k);
+    M.last.set(k, p.val);
+    if (prev === p.val || reduce()) return;
+    const from = prev === undefined ? 0 : prev, dur = prev === undefined ? 1150 : 700;
+    const rec = { final: txt, cur: null, raf: 0 };
+    if (st && st.raf) cancelAnimationFrame(st.raf);
+    busy.set(el, rec);
+    const t0 = performance.now() + (prev === undefined ? 180 : 0);
+    const step = (now) => {
+      if (!el.isConnected) return;
+      const x = Math.min(1, Math.max(0, (now - t0) / dur)), e = 1 - Math.pow(1 - x, 4);
+      const out = x >= 1 ? txt : fmt(p, from + (p.val - from) * e);
+      rec.cur = out; if (el.textContent !== out) el.textContent = out;
+      if (x < 1) rec.raf = requestAnimationFrame(step);
+    };
+    rec.cur = fmt(p, from); el.textContent = rec.cur;
+    rec.raf = requestAnimationFrame(step);
+  };
+  const chart = (gd) => {
+    if (!gd || !gd.data || !gd.querySelector('.main-svg')) return;
+    if (seen.get(gd) === gd.data) return;
+    seen.set(gd, gd.data);
+    const all = Array.prototype.slice.call(document.querySelectorAll('.js-plotly-plot'));
+    const k = M.path + '|' + all.indexOf(gd);
+    let sig;
+    try { sig = JSON.stringify(gd.data.map(t => [t.type, t.x, t.y, t.values, t.labels])).slice(0, 40000); }
+    catch (err) { sig = String(Math.random()); }
+    if (M.charts.get(k) === sig) return;
+    M.charts.set(k, sig);
+    if (reduce()) return;
+    try {   // barre orizzontali e barre negative crescono dal lato giusto
+      gd.classList.toggle('as-hbar', gd.data.some(t => t.type === 'bar' && t.orientation === 'h'));
+      gd.querySelectorAll('.barlayer .point').forEach(pt => {
+        const d = pt.__data__; pt.classList.toggle('as-neg', !!(d && typeof d.s === 'number' && d.s < 0));
+      });
+    } catch (err) { /* solo estetica */ }
+    gd.classList.remove('as-drawing'); void gd.offsetWidth; gd.classList.add('as-drawing');
+    clearTimeout(gd.__asT); gd.__asT = setTimeout(() => gd.classList.remove('as-drawing'), 2400);
+  };
+  const scan = (n) => {
+    if (!n) return;
+    if (n.nodeType !== 1) n = n.parentElement;
+    if (!n || !n.isConnected || n.closest('.hoverlayer, .legend')) return;
+    if (n.matches(SEL)) count(n);
+    n.querySelectorAll(SEL).forEach(count);
+    const gd = n.closest('.js-plotly-plot');
+    if (gd) chart(gd);
+    n.querySelectorAll('.js-plotly-plot').forEach(chart);
+  };
+  let queue = new Set(), planned = false;
+  new MutationObserver((muts) => {
+    checkPath();
+    for (const m of muts) {
+      if (m.type === 'characterData') queue.add(m.target.parentElement);
+      else m.addedNodes.forEach((n) => queue.add(n));
+    }
+    if (!planned) {
+      planned = true;
+      requestAnimationFrame(() => { planned = false; const q = Array.from(queue); queue.clear(); q.forEach(scan); });
+    }
+  }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  scan(document.body);
+})();
+"""
+
+
+# ritardo di ogni barra dei grafici (entrano una dopo l'altra, da sinistra)
+_BAR_DELAYS = "\n".join(f".js-plotly-plot.as-drawing .barlayer .point:nth-child({i}) {{ --as-b: {min(i - 1, 30) * 0.035:.3f}s; }}"
+                         for i in range(2, 32))
 
 
 def inject_css(mode: str) -> None:
@@ -124,10 +251,20 @@ h1, h2, h3, h4 {{ letter-spacing: -0.01em; }}
 [data-testid="stDataFrame"], [data-testid="stDataEditor"] {{ border-radius: 14px; overflow: hidden; }}
 [data-testid="stExpander"] details {{ border-radius: 16px !important; background: var(--as-surface);
   border-color: var(--as-line) !important; box-shadow: var(--as-shadow); }}
-[data-testid="stTabs"] [role="tablist"] {{ gap: .4rem; border-bottom: none; }}
-[data-testid="stTabs"] button[role="tab"] {{ border-radius: 999px; padding: .25rem .9rem; background: transparent; }}
-[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {{ background: var(--as-accent-soft); }}
-[data-testid="stTabs"] button[role="tab"][aria-selected="true"] p {{ color: var(--as-accent); font-weight: 600; }}
+/* schede: barra a pillola, la pillola scura scivola sulla scheda scelta */
+[data-testid="stTabs"] [role="tablist"] {{ gap: .2rem; border-bottom: none; background: var(--as-surface);
+  border: 1px solid var(--as-line); border-radius: 999px; padding: 4px; box-shadow: var(--as-shadow);
+  width: fit-content; max-width: 100%; overflow-x: auto; scrollbar-width: none; margin-bottom: .6rem; }}
+[data-testid="stTabs"] [role="tablist"]::-webkit-scrollbar {{ display: none; }}
+[data-testid="stTabs"] [role="tab"] {{ border-radius: 999px; padding: .45rem 1.05rem !important; background: transparent;
+  height: auto !important; white-space: nowrap; transition: color .25s ease; }}
+[data-testid="stTabs"] [role="tab"] p {{ position: relative; z-index: 1; font-weight: 600; color: var(--as-muted);
+  transition: color .3s ease; }}
+[data-testid="stTabs"] [role="tab"]:hover p {{ color: var(--as-ink); }}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] p {{ color: var(--as-on-ink); }}
+[data-testid="stTabs"] .react-aria-SelectionIndicator {{ inset: 0 !important; width: auto !important; height: auto !important;
+  border-radius: 999px; background: var(--as-ink) !important; z-index: 0;
+  transition: translate .42s cubic-bezier(.16,1,.3,1), width .42s cubic-bezier(.16,1,.3,1) !important; }}
 [data-testid="stTabs"] [data-baseweb="tab-highlight"], [data-testid="stTabs"] [data-baseweb="tab-border"] {{ display: none; }}
 [data-testid="stMetricValue"] {{ font-weight: 700; }}
 [data-testid="stMetricLabel"] p {{ color: var(--as-muted); font-size: .85rem; }}
@@ -257,6 +394,32 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
 .as-cat .amt {{ white-space: nowrap; font-weight: 600; }} .as-cat .pct {{ color: var(--as-muted); margin-left: .5rem; font-size: .8rem; }}
 .as-cat .track {{ height: 7px; border-radius: 4px; background: var(--as-track); margin-top: .35rem; }}
 .as-cat .track span {{ display: block; height: 7px; border-radius: 4px; }}
+/* ciambella: le fette si sollevano al passaggio del mouse, al centro nome/importo/percentuale */
+.as-donut {{ position: relative; width: min(100%, 290px); margin: .2rem auto .9rem; aspect-ratio: 1; }}
+.as-donut svg {{ width: 100%; height: 100%; display: block; overflow: visible; }}
+.as-donut g.sl {{ transform-box: view-box; transform-origin: 0 0; outline: none;
+  transition: transform .45s cubic-bezier(.34,1.56,.64,1), opacity .25s ease, filter .25s ease; }}
+.as-donut.hov g.sl:not(.ghost) {{ opacity: .55; }}
+.as-donut g.sl.src {{ opacity: 0 !important; transition: none; }}
+.as-donut g.top {{ pointer-events: none; }}
+.as-donut g.ghost g.in, .as-donut g.ghost .ic {{ animation: none; }}
+.as-donut g.ghost.on {{ transform: translate(var(--dx), var(--dy)) scale(1.07);
+  filter: drop-shadow(0 8px 14px rgba(10, 6, 30, .35)); }}
+.as-donut.click g.sl {{ cursor: pointer; }}
+.as-donut g.in {{ transform-box: view-box; transform-origin: 0 0;
+  animation: as-donut-in .75s cubic-bezier(.16,1,.3,1) backwards; animation-delay: calc(var(--i) * 55ms + 60ms); }}
+.as-donut .ic {{ animation: as-fade .45s ease backwards; animation-delay: calc(var(--i) * 55ms + 480ms); }}
+@keyframes as-donut-in {{ from {{ transform: rotate(-35deg) scale(.55); opacity: 0; }} to {{ transform: none; opacity: 1; }} }}
+.as-donut .c {{ position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 40%;
+  text-align: center; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: .1rem; }}
+.as-donut .c .l {{ font-size: .72rem; color: var(--as-muted); line-height: 1.2; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }}
+.as-donut .c .v {{ font-size: 1.12rem; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; }}
+.as-donut .c .p {{ font-style: normal; font-size: .75rem; font-weight: 700; color: var(--as-accent); min-height: 0; }}
+.as-donut .c .p:empty {{ display: none; }}
+.as-legend > div.as-hl {{ background: var(--as-accent-soft); border-radius: 10px; }}
+.as-legend:not(.as-pick) > div {{ padding: .25rem .5rem; margin: 0 -.5rem; border-radius: 10px;
+  transition: background-color .12s ease; }}
 /* legenda e barre cliccabili: aprono il dettaglio della categoria */
 .as-pick.as-legend {{ gap: .1rem; }} .as-pick.as-cats {{ gap: .2rem; }}
 .as-pick > div {{ cursor: pointer; border-radius: 10px; padding: .4rem .5rem; margin: 0 -.5rem;
@@ -484,6 +647,131 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
     flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; }}
   [data-testid="stHorizontalBlock"]:has(.as-alert) > [data-testid="stColumn"]:first-child {{ flex: 1 1 100% !important; }}
 }}
+/* ================= animazioni ================= */
+@keyframes as-rise {{ from {{ opacity: 0; transform: translate3d(0, 18px, 0) scale(.985); }} to {{ opacity: 1; transform: none; }} }}
+@keyframes as-fade {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
+@keyframes as-fade-up {{ from {{ opacity: 0; transform: translate3d(0, 8px, 0); }} to {{ opacity: 1; transform: none; }} }}
+@keyframes as-grow-x {{ from {{ transform: scaleX(0); }} to {{ transform: none; }} }}
+@keyframes as-grow-y {{ from {{ transform: scaleY(0); }} to {{ transform: none; }} }}
+@keyframes as-wipe {{ from {{ clip-path: inset(-2% 100% -2% 0); }} to {{ clip-path: inset(-2% -1% -2% 0); }} }}
+@keyframes as-pop {{ from {{ opacity: 0; transform: scale(.82) rotate(-35deg); }} to {{ opacity: 1; transform: none; }} }}
+@keyframes as-pulse {{ 0% {{ box-shadow: 0 0 0 0 color-mix(in srgb, var(--as-entrata) 55%, transparent); }}
+  70% {{ box-shadow: 0 0 0 7px transparent; }} 100% {{ box-shadow: 0 0 0 0 transparent; }} }}
+/* entrata della pagina: i blocchi salgono uno dopo l'altro (solo quando la pagina si apre: negli aggiornamenti
+   Streamlit tiene gli stessi elementi e l'animazione non riparte) */
+.block-container > [data-testid="stVerticalBlock"] > * {{ --as-d: 0ms; }}
+.block-container > [data-testid="stVerticalBlock"] > :nth-child(2) {{ --as-d: 40ms; }}
+.block-container > [data-testid="stVerticalBlock"] > :nth-child(3) {{ --as-d: 90ms; }}
+.block-container > [data-testid="stVerticalBlock"] > :nth-child(4) {{ --as-d: 140ms; }}
+.block-container > [data-testid="stVerticalBlock"] > :nth-child(5) {{ --as-d: 190ms; }}
+.block-container > [data-testid="stVerticalBlock"] > :nth-child(6) {{ --as-d: 240ms; }}
+.block-container > [data-testid="stVerticalBlock"] > :nth-child(7) {{ --as-d: 290ms; }}
+.block-container > [data-testid="stVerticalBlock"] > :nth-child(8) {{ --as-d: 330ms; }}
+.block-container > [data-testid="stVerticalBlock"] > :nth-child(n+9) {{ --as-d: 370ms; }}
+.block-container > [data-testid="stVerticalBlock"] > :not(:has(.st-key-as_bottomnav)):not(:has(> [data-testid="stHorizontalBlock"] > [data-testid="stColumn"])) {{
+  animation: as-rise .7s cubic-bezier(.16,1,.3,1) var(--as-d) both; }}
+/* colonne affiancate: salgono una dopo l'altra */
+.block-container > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+  --as-c: 0ms; animation: as-rise .7s cubic-bezier(.16,1,.3,1) calc(var(--as-d) + var(--as-c)) both; }}
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) {{ --as-c: 80ms; }}
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) {{ --as-c: 160ms; }}
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(n+4) {{ --as-c: 220ms; }}
+/* dentro le card prima compare il «vetro» vuoto, poi il contenuto */
+[class*="st-key-card_"] > * {{ animation: as-fade .55s ease calc(var(--as-d, 0ms) + var(--as-c, 0ms) + 200ms) both; }}
+/* riquadri dei numeri: uno dopo l'altro */
+.as-grads > .as-grad, .as-kpis > .as-kpi {{ --as-i: 0; animation: as-rise .7s cubic-bezier(.16,1,.3,1)
+  calc(var(--as-d, 0ms) + var(--as-i) * 70ms) both; }}
+.as-grads > :nth-child(2), .as-kpis > :nth-child(2) {{ --as-i: 1; }}
+.as-grads > :nth-child(3), .as-kpis > :nth-child(3) {{ --as-i: 2; }}
+.as-grads > :nth-child(4), .as-kpis > :nth-child(4) {{ --as-i: 3; }}
+.as-grads > :nth-child(n+5), .as-kpis > :nth-child(n+5) {{ --as-i: 4; }}
+/* barre di avanzamento che si riempiono, barrette che crescono */
+.as-grad .p .bar span, .as-cat .track span {{ transform-origin: left center;
+  animation: as-grow-x 1s cubic-bezier(.16,1,.3,1) calc(var(--as-d, 0ms) + 260ms) both; }}
+.as-spark i {{ transform-origin: bottom; animation: as-grow-y .7s cubic-bezier(.16,1,.3,1)
+  calc(var(--as-d, 0ms) + 220ms + var(--i, 0) * 16ms) both; }}
+/* schede: il contenuto entra quando cambi scheda */
+[data-testid="stTabPanel"] {{ animation: as-fade-up .45s cubic-bezier(.16,1,.3,1) both; }}
+/* grafici (classe messa dallo script, solo la prima volta o quando cambiano i dati): le barre crescono dalla base
+   una dopo l'altra, linee e aree si disegnano da sinistra a destra, la ciambella gira su se stessa */
+.js-plotly-plot.as-drawing .barlayer .point path {{ transform-box: fill-box; transform-origin: 50% 100%;
+  animation: as-grow-y .9s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(.08s + var(--as-b, 0s)); }}
+.js-plotly-plot.as-drawing .barlayer .point.as-neg path {{ transform-origin: 50% 0%; }}
+.js-plotly-plot.as-drawing.as-hbar .barlayer .point path {{ transform-origin: 0% 50%; animation-name: as-grow-x; }}
+.js-plotly-plot.as-drawing.as-hbar .barlayer .point.as-neg path {{ transform-origin: 100% 50%; }}
+{_BAR_DELAYS}
+.js-plotly-plot.as-drawing .cartesianlayer .scatterlayer {{ animation: as-wipe 1.2s cubic-bezier(.22,1,.36,1) .1s both; }}
+.js-plotly-plot.as-drawing .pielayer {{ transform-box: fill-box; transform-origin: center;
+  animation: as-pop .9s cubic-bezier(.16,1,.3,1) .1s both; }}
+
+/* ---- etichetta a pillola sopra il titolo, chip con i numeri, pulsante dell'assistente ---- */
+.as-badge {{ display: inline-flex; align-items: center; gap: .45rem; padding: .28rem .7rem; border-radius: 999px;
+  background: var(--as-surface); border: 1px solid var(--as-line); box-shadow: var(--as-shadow); font-size: .76rem;
+  font-weight: 600; color: var(--as-ink); margin-bottom: .55rem; white-space: nowrap; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; }}
+.as-badge i {{ width: 7px; height: 7px; border-radius: 50%; background: var(--as-entrata); flex: 0 0 7px;
+  animation: as-pulse 2.4s ease-out infinite; }}
+.as-chips {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .6rem; margin-top: .6rem; }}
+.as-chip {{ background: var(--as-field); border-radius: 14px; padding: .55rem .8rem; min-width: 0; }}
+.as-chip span {{ display: block; font-size: .72rem; color: var(--as-muted); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }}
+.as-chip b {{ display: block; font-size: 1.02rem; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap;
+  margin-top: .1rem; }}
+.as-spark {{ display: flex; align-items: flex-end; gap: 2px; height: 30px; margin-top: .55rem; position: relative; z-index: 1; }}
+.as-spark i {{ flex: 1 1 0; min-width: 2px; border-radius: 2px 2px 1px 1px; background: var(--g1, var(--as-accent));
+  opacity: .38; height: calc(var(--h, 0) * 1%); min-height: 2px; }}
+.as-spark i.on {{ opacity: 1; }}
+.st-key-as_ask a {{ height: 44px; padding: 0 1rem !important; border-radius: 999px !important; background: var(--as-ink) !important;
+  justify-content: center; gap: .4rem; box-shadow: var(--as-shadow); transition: transform .15s ease, opacity .15s ease; }}
+.st-key-as_ask a:hover {{ transform: translateY(-1px); opacity: .92; }}
+.st-key-as_ask a p, .st-key-as_ask a [data-testid="stIconMaterial"] {{ color: var(--as-on-ink) !important; font-weight: 600; }}
+@media (max-width: 900px) {{ .st-key-as_ask a [data-testid="stMarkdownContainer"] {{ display: none; }}
+  .st-key-as_ask a {{ width: 44px; padding: 0 !important; }} }}
+/* indicatore circolare (budget del mese) */
+.as-gauge {{ display: flex; flex-direction: column; align-items: center; }}
+.as-gauge .g {{ position: relative; width: min(100%, 250px); }}
+.as-gauge .g img {{ width: 100%; display: block; }}
+.as-gauge .g .c {{ position: absolute; left: 0; right: 0; bottom: 4%; text-align: center; }}
+.as-gauge .g .c b {{ display: block; font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }}
+.as-gauge .g .c span {{ font-size: .76rem; color: var(--as-muted); }}
+.as-gauge .as-chips {{ width: 100%; }}
+/* assistente IA: sfera animata, puntini «sta scrivendo», messaggi e suggerimenti */
+.as-ai-hero {{ display: flex; flex-direction: column; align-items: center; text-align: center; padding: 1.4rem 1rem .6rem; }}
+.as-ai-hero h3 {{ margin: .9rem 0 .2rem; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }}
+.as-ai-hero p {{ margin: 0; color: var(--as-muted); font-size: .9rem; max-width: 34rem; }}
+.as-ai-hero .orb {{ position: relative; width: 84px; height: 84px; border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #fff9 0, transparent 38%),
+              conic-gradient(from 0deg, var(--as-accent), var(--as-entrata), #FFB86B, var(--as-accent));
+  box-shadow: 0 14px 40px color-mix(in srgb, var(--as-accent) 40%, transparent);
+  animation: as-orb-spin 9s linear infinite, as-orb-float 4.5s ease-in-out infinite; }}
+.as-ai-hero .orb i {{ position: absolute; inset: -10px; border-radius: 50%; border: 1.5px solid
+  color-mix(in srgb, var(--as-accent) 45%, transparent); animation: as-orb-ring 3.2s cubic-bezier(.16,1,.3,1) infinite; }}
+.as-ai-hero .orb i:nth-child(2) {{ animation-delay: 1.05s; }} .as-ai-hero .orb i:nth-child(3) {{ animation-delay: 2.1s; }}
+@keyframes as-orb-spin {{ to {{ filter: hue-rotate(360deg); }} }}
+@keyframes as-orb-float {{ 0%, 100% {{ transform: translateY(0); }} 50% {{ transform: translateY(-6px); }} }}
+@keyframes as-orb-ring {{ from {{ transform: scale(.82); opacity: .9; }} to {{ transform: scale(1.45); opacity: 0; }} }}
+.as-ai-typing {{ display: inline-flex; gap: 5px; padding: .55rem .2rem; }}
+.as-ai-typing i {{ width: 7px; height: 7px; border-radius: 50%; background: var(--as-muted);
+  animation: as-typing 1.1s ease-in-out infinite; }}
+.as-ai-typing i:nth-child(2) {{ animation-delay: .15s; }} .as-ai-typing i:nth-child(3) {{ animation-delay: .3s; }}
+@keyframes as-typing {{ 0%, 60%, 100% {{ transform: translateY(0); opacity: .35; }} 30% {{ transform: translateY(-5px); opacity: 1; }} }}
+.st-key-ai_sugg {{ flex-wrap: wrap !important; max-width: 46rem; margin: 0 auto; }}
+.st-key-ai_sugg button {{ border-radius: 999px !important; background: var(--as-surface) !important;
+  border: 1px solid var(--as-line) !important; transition: transform .25s cubic-bezier(.16,1,.3,1), border-color .2s; }}
+.st-key-ai_sugg button:hover {{ transform: translateY(-2px); border-color: var(--as-accent) !important; }}
+.st-key-ai_sugg > div {{ animation: as-fade-up .6s cubic-bezier(.16,1,.3,1) both; }}
+.st-key-ai_sugg > div:nth-child(2) {{ animation-delay: .06s; }} .st-key-ai_sugg > div:nth-child(3) {{ animation-delay: .12s; }}
+.st-key-ai_sugg > div:nth-child(4) {{ animation-delay: .18s; }} .st-key-ai_sugg > div:nth-child(5) {{ animation-delay: .24s; }}
+.st-key-ai_sugg > div:nth-child(6) {{ animation-delay: .3s; }}
+.st-key-ai_chat {{ max-width: 52rem; margin: 0 auto; width: 100%; }}
+.st-key-ai_chat [data-testid="stChatMessage"] {{ background: var(--as-surface); border: 1px solid var(--as-line);
+  border-radius: 18px; padding: .8rem 1rem; box-shadow: var(--as-shadow);
+  animation: as-fade-up .5s cubic-bezier(.16,1,.3,1) both; }}
+.st-key-ai_chat [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]),
+.st-key-ai_chat [data-testid="stChatMessage"]:has([aria-label="Chat message from user"]) {{
+  background: var(--as-accent-soft); box-shadow: none; }}
+.st-key-ai_tools {{ max-width: 52rem; margin: 0 auto; width: 100%; }}
+
 /* durante un aggiornamento la pagina non «lampeggia»: si attenua appena, e solo se l'attesa è lunga */
 [data-stale="true"] {{ opacity: .82 !important; transition: opacity .3s ease-in 1.2s !important; }}
 /* il browser anima solo spostamenti e trasparenze (niente ricalcolo dell'impaginazione) */
@@ -493,11 +781,22 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
   .as-table tbody tr {{ transition: none !important; }}
   .as-grads-click .as-grad:hover, .as-kpi.click:hover, .as-bitem:hover, .as-date-click:hover {{ transform: none !important; }}
   [data-stale="true"] {{ transition: none !important; }}
+  .block-container > [data-testid="stVerticalBlock"] > *, [data-testid="stColumn"], [class*="st-key-card_"] > *,
+  .as-grads > .as-grad, .as-kpis > .as-kpi, .as-grad .p .bar span, .as-cat .track span, .as-spark i,
+  [data-testid="stTabPanel"], .js-plotly-plot .barlayer .point path, .js-plotly-plot .scatterlayer,
+  .js-plotly-plot .pielayer, .as-badge i,
+  .as-ai-hero .orb, .as-ai-hero .orb i, .as-ai-typing i, .st-key-ai_sugg > div,
+  .st-key-ai_chat [data-testid="stChatMessage"], .as-donut g.in, .as-donut .ic {{ animation: none !important; }}
+  .as-donut g.sl {{ transition: none !important; }}
+  .st-key-ai_sugg button {{ transition: none !important; }}
+  [data-testid="stTabs"] .react-aria-SelectionIndicator {{ transition: none !important; }}
 }}
 </style>"""
     st.html(css)
     if mode == "glass":
         st.html(GLASS_CSS)
+    # animazione dei numeri e dei grafici (installata una volta sola nella pagina)
+    st.html(f"<script>{MOTION_JS}</script>", unsafe_allow_javascript=True)
 
 
 # superfici "Liquid Glass": vetro = sfondo traslucido + sfocatura e saturazione di ciò che sta dietro,
@@ -732,12 +1031,14 @@ def _date_chip(day: str, date_txt: str) -> bool:
     return bool(getattr(res, "open", None)) if res is not None else False
 
 
-def header(title: str, subtitle: str | None = None) -> None:
-    """Barra superiore: titolo e sottotitolo a sinistra; a destra la ricerca, la campanella degli avvisi e l'avatar,
-    che apre il menu del profilo (Profilo, Importa estratti, Collega banche, Impostazioni)."""
+def header(title: str, subtitle: str | None = None, badge: str | None = None, ask: bool = True) -> None:
+    """Barra superiore: titolo e sottotitolo a sinistra (badge: etichetta a pillola sopra il titolo, es. «Oggi · 2
+    movimenti»); a destra la ricerca, l'assistente, la campanella degli avvisi e l'avatar, che apre il menu del
+    profilo (Profilo, Importa estratti, Collega banche, Impostazioni)."""
     from views import nav
 
     sub = f"<p>{e(subtitle)}</p>" if subtitle else ""
+    pill = f'<div class="as-badge"><i></i>{e(badge)}</div>' if badge else ""
     name = profile_name()
     a, b = avatar_colors()
     from core import db
@@ -745,10 +1046,13 @@ def header(title: str, subtitle: str | None = None) -> None:
               t("Amministratore") if db.is_admin() else t("Dati salvati solo su questo computer"))
     st.html(f'<style>.st-key-as_me button {{ background: linear-gradient(135deg, {a}, {b}) !important; }}</style>')
     with st.container(key="as_topbar", horizontal=True, vertical_alignment="center", gap="small"):
-        st.html(f'<div class="as-top"><div><h1>{e(title)}</h1>{sub}</div></div>', width="stretch")
+        st.html(f'<div class="as-top"><div>{pill}<h1>{e(title)}</h1>{sub}</div></div>', width="stretch")
         from views import cerca
         with st.container(key="as_search_box", width="content"):
             cerca.box()
+        if ask and "assistente" in nav.PAGES:
+            with st.container(key="as_ask", width="content"):
+                st.page_link(nav.PAGES["assistente"], label=t("Chiedi all'assistente"), icon=":material/auto_awesome:")
         if "avvisi" in nav.PAGES:
             # campanella degli avvisi, con il numero di quelli da guardare
             n = int(getattr(nav, "ALERTS", 0) or 0)
@@ -773,6 +1077,60 @@ def header(title: str, subtitle: str | None = None) -> None:
                     lingua.selector("as_lang_sel", compact=True)
                 st.button(t("Esci"), key="as_logout", icon=":material/logout:", type="tertiary", width="stretch",
                           on_click=login.logout, help=t("Chiude la sessione: per rientrare servono nome utente e password"))
+
+
+def chips(items: list[tuple[str, str]]) -> str:
+    """Piccoli riquadri con un numero e la sua etichetta (HTML da mettere in st.html): items = [(valore, etichetta)]."""
+    return ('<div class="as-chips">' + "".join(
+        f'<div class="as-chip"><span>{e(lab)}</span><b class="as-count">{e(val)}</b></div>' for val, lab in items)
+        + '</div>')
+
+
+def _gauge_svg(pct: float, color: str) -> str:
+    """Quadrante a 240° con lancetta, come immagine SVG (st.html toglie gli <svg> scritti nella pagina). L'arco si
+    riempie e la lancetta ruota con un'animazione che sta dentro l'SVG stesso."""
+    import base64
+    import math
+    p = max(0.0, min(1.0, pct / 100.0))
+    cx, cy, r = 120.0, 118.0, 92.0
+    a0, sweep = 150.0, 240.0                      # da in basso a sinistra a in basso a destra, passando in alto
+
+    def pt(deg: float, rad: float) -> tuple[float, float]:
+        return cx + rad * math.cos(math.radians(deg)), cy + rad * math.sin(math.radians(deg))
+
+    x0, y0 = pt(a0, r)
+    x1, y1 = pt(a0 + sweep, r)
+    arc = f"M{x0:.1f} {y0:.1f} A{r} {r} 0 1 1 {x1:.1f} {y1:.1f}"
+    length = 2 * math.pi * r * sweep / 360.0
+    ticks = "".join(
+        '<line x1="{:.1f}" y1="{:.1f}" x2="{:.1f}" y2="{:.1f}"/>'.format(*pt(a0 + sweep * k / 12, r + 12),
+                                                                         *pt(a0 + sweep * k / 12, r + (20 if k % 3 == 0 else 16)))
+        for k in range(13))
+    ang = a0 + sweep * p + 90                     # la lancetta disegnata verso l'alto (-90°)
+    start = a0 + 90
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 200">
+<style>
+.f{{stroke-dasharray:{length:.1f};stroke-dashoffset:{length * (1 - p):.1f};animation:fill 1.4s cubic-bezier(.16,1,.3,1) .15s both}}
+.n{{transform-origin:{cx}px {cy}px;transform:rotate({ang:.1f}deg);animation:needle 1.6s cubic-bezier(.34,1.3,.5,1) .15s both}}
+@keyframes fill{{from{{stroke-dashoffset:{length:.1f}}}}}
+@keyframes needle{{from{{transform:rotate({start:.1f}deg)}}}}
+@media (prefers-reduced-motion:reduce){{.f,.n{{animation:none}}}}
+</style>
+<path d="{arc}" fill="none" stroke="#8C8AA0" stroke-opacity=".22" stroke-width="16" stroke-linecap="round"/>
+<path class="f" d="{arc}" fill="none" stroke="{color}" stroke-width="16" stroke-linecap="round"/>
+<g stroke="#8C8AA0" stroke-opacity=".55" stroke-width="2" stroke-linecap="round">{ticks}</g>
+<g class="n"><path d="M{cx - 4} {cy} L{cx} {cy - r + 18} L{cx + 4} {cy} Z" fill="#8C8AA0"/>
+<circle cx="{cx}" cy="{cy}" r="9" fill="#8C8AA0"/><circle cx="{cx}" cy="{cy}" r="4" fill="#FFFFFF"/></g>
+</svg>"""
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+
+def gauge(pct: float, center: str, caption: str, color: str, chip_items: list[tuple[str, str]] | None = None) -> None:
+    """Indicatore circolare con lancetta (es. quanto budget del mese è già stato speso), il numero al centro e sotto,
+    volendo, dei riquadri con altri numeri."""
+    st.html(f'<div class="as-gauge"><div class="g"><img src="{_gauge_svg(pct, safe_color(color))}" alt="">'
+            f'<div class="c"><b class="as-count">{e(center)}</b><span>{e(caption)}</span></div></div>'
+            f'{chips(chip_items) if chip_items else ""}</div>')
 
 
 def table(df: pd.DataFrame, fmt: dict | None = None, *, index: bool = False, height: int | None = None,
@@ -844,9 +1202,22 @@ def table(df: pd.DataFrame, fmt: dict | None = None, *, index: bool = False, hei
             f'<tbody>{"".join(body)}</tbody></table></div>')
 
 
+def _spark_heights(values) -> list[int]:
+    """Altezze (0-100) delle barrette di una serie; lista vuota se non c'è niente da mostrare."""
+    try:
+        vals = [max(0.0, float(v)) for v in (values or [])][-40:]
+    except (TypeError, ValueError):
+        return []
+    top = max(vals) if vals else 0.0
+    if top <= 0:
+        return []
+    return [int(round(v / top * 100)) for v in vals]
+
+
 def gradient_cards(items: list[dict], key: str | None = None) -> str | None:
     """items: dict(label, value, sub, variant in GRADIENTS, pct=None|0..100, pct_label='', id=…,
-    foot=None|(testo, valore): riga sotto il valore, es. ("Speso questo mese", "459,93 €")).
+    foot=None|(testo, valore): riga sotto il valore, es. ("Speso questo mese", "459,93 €"),
+    spark=None|[numeri ≥ 0]: barrette giorno per giorno sotto il valore (l'ultima evidenziata)).
     Con `key` le card sono cliccabili e ritorna l'id della card cliccata (una volta per clic)."""
     if key:
         data = []
@@ -857,7 +1228,7 @@ def gradient_cards(items: list[dict], key: str | None = None) -> str | None:
                          "value": it["value"], "g1": a, "g2": b, "pct": w,
                          "tone": it.get("tone") if it.get("tone") in ("neg", "pos") else "",
                          "pct_label": it.get("pct_label", f"{w:.0f}%" if w is not None else ""),
-                         "foot": list(it["foot"]) if it.get("foot") else None})
+                         "foot": list(it["foot"]) if it.get("foot") else None, "spark": _spark_heights(it.get("spark"))})
         global _grads_component
         if _grads_component is None:
             import streamlit.components.v2 as v2
@@ -876,9 +1247,13 @@ def gradient_cards(items: list[dict], key: str | None = None) -> str | None:
         sub = f'<div class="s">{e(it["sub"])}</div>' if it.get("sub") else ""
         foot = (f'<div class="f">{e(it["foot"][0])} <b>{e(it["foot"][1])}</b></div>' if it.get("foot") else "")
         tone = it.get("tone") if it.get("tone") in ("neg", "pos") else ""
+        hs = _spark_heights(it.get("spark"))
+        spark = ('<div class="as-spark">' + "".join(
+            f'<i{" class=on" if k == len(hs) - 1 else ""} style="--h:{h};--i:{k}"></i>' for k, h in enumerate(hs))
+            + '</div>') if hs else ""
         cells.append(f'<div class="as-grad" style="--g1:{a};--g2:{b}">'
                      f'<div class="l">{e(it["label"])}</div>{sub}<div class="v {tone}">{e(it["value"])}</div>'
-                     f'{foot}{prog}</div>')
+                     f'{foot}{prog}{spark}</div>')
     st.html(f'<div class="as-grads">{"".join(cells)}</div>')
     return None
 
@@ -945,6 +1320,12 @@ export default function(component) {
       const p = el('div', 'p'); const bar = el('div', 'bar'); const sp = el('span');
       sp.style.width = it.pct + '%'; bar.appendChild(sp); p.appendChild(bar); p.appendChild(el('b', '', it.pct_label));
       c.appendChild(p);
+    }
+    if (it.spark && it.spark.length) {
+      const sk = el('div', 'as-spark');
+      it.spark.forEach((h, k) => { const b = el('i', k === it.spark.length - 1 ? 'on' : '');
+        b.style.setProperty('--h', h); b.style.setProperty('--i', k); sk.appendChild(b); });
+      c.appendChild(sk);
     }
     const go = el('div', 'go', 'arrow_outward'); go.setAttribute('aria-hidden', 'true'); c.appendChild(go);
     c.tabIndex = 0; c.setAttribute('role', 'button'); c.setAttribute('aria-label', data.detail + it.label);
@@ -1050,29 +1431,290 @@ def _picked(sel, key: str) -> str | None:
     return sel or None
 
 
-def donut(rows: list[tuple[str, float, str]], center_label: str, center_value: str, fmt, limit: int = 6,
-          key: str | None = None) -> str | None:
-    """Ciambella con legenda. rows: (nome, importo, colore); oltre `limit` voci raggruppa in 'Altre'.
-    Con `key` la legenda è cliccabile e ritorna il nome della categoria scelta (una volta per clic)."""
-    import plotly.graph_objects as go
+# ---------------------------------------------------------------- ciambella (SVG disegnato nel browser)
+# Geometria in unità del viewBox (-130..130): raggio esterno e interno dell'anello, spazio tra le fette, lato
+# delle icone. Le fette che si sollevano al passaggio del mouse (scala 1.07 + 5 unità verso l'esterno) restano
+# dentro il riquadro.
+_D_R, _D_RIN, _D_GAP, _D_ICON, _D_PAD = 110.0, 64.0, 2.0, 19.0, 2.5
+# colori per i grafici che non sono di categorie (valute, titoli, tipi di investimento)
+SERIES = ["#7C5CFC", "#22B8A7", "#F0627E", "#F59E4C", "#4C8DF6", "#E86AC5", "#6BCB77", "#F7C55E", "#2EC4D6",
+          "#A86BEA", "#FF8F6B", "#5B7CFA"]
 
-    rows, total, _ = _group(rows, limit, key)
+
+def _luminance(hex_color: str) -> float:
+    h = safe_color(hex_color)
+    def ch(v: int) -> float:
+        c = v / 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    return 0.2126 * ch(int(h[1:3], 16)) + 0.7152 * ch(int(h[3:5], 16)) + 0.0722 * ch(int(h[5:7], 16))
+
+
+def _pt(rho: float, ang: float) -> tuple[float, float]:
+    """Punto a distanza rho dal centro, angolo in radianti da mezzogiorno in senso orario (y verso il basso)."""
+    return rho * math.sin(ang), -rho * math.cos(ang)
+
+
+def _ang_of(x: float, y: float) -> float:
+    return math.atan2(x, -y) % (2 * math.pi)
+
+
+def _slice_path(a0: float, a1: float, r_out: float = _D_R, r_in: float = _D_RIN, gap: float = _D_GAP) -> str:
+    """Percorso SVG di una fetta dell'anello tra gli angoli a0 e a1 (con un piccolo spazio dalle vicine)."""
+    span = a1 - a0
+    if span >= 2 * math.pi - 1e-9:   # una sola voce: anello intero
+        return (f"M0,{-r_out:.2f}A{r_out:.2f},{r_out:.2f} 0 1 1 0,{r_out:.2f}A{r_out:.2f},{r_out:.2f} 0 1 1 0,"
+                f"{-r_out:.2f}ZM0,{-r_in:.2f}A{r_in:.2f},{r_in:.2f} 0 1 0 0,{r_in:.2f}A{r_in:.2f},{r_in:.2f} 0 1 0 0,"
+                f"{-r_in:.2f}Z")
+    mid = (a0 + a1) / 2
+    po = min(gap / 2 / r_out, span / 2 * 0.45)
+    pi_ = min(gap / 2 / r_in, span / 2 * 0.45)
+    o0, o1, i0, i1 = a0 + po, a1 - po, a0 + pi_, a1 - pi_
+    if i1 <= i0:
+        i0 = i1 = mid
+    big_o = 1 if (o1 - o0) > math.pi else 0
+    big_i = 1 if (i1 - i0) > math.pi else 0
+    (x0, y0), (x1, y1) = _pt(r_out, o0), _pt(r_out, o1)
+    (x2, y2), (x3, y3) = _pt(r_in, i1), _pt(r_in, i0)
+    return (f"M{x0:.2f},{y0:.2f}A{r_out:.2f},{r_out:.2f} 0 {big_o} 1 {x1:.2f},{y1:.2f}L{x2:.2f},{y2:.2f}"
+            f"A{r_in:.2f},{r_in:.2f} 0 {big_i} 0 {x3:.2f},{y3:.2f}Z")
+
+
+def _icon_fits(a0: float, a1: float, size: float = _D_ICON, pad: float = _D_PAD, r_out: float = _D_R,
+               r_in: float = _D_RIN, gap: float = _D_GAP) -> tuple[float, float] | None:
+    """Centro dell'icona (quadrato di lato size + margine pad) se sta tutta dentro la fetta, altrimenti None.
+    Controlla punti fitti sul bordo del quadrato: distanza dal centro tra i due raggi e angolo dentro la fetta,
+    lontano dai bordi della fetta almeno pad (più metà dello spazio tra le fette)."""
+    span = a1 - a0
+    if span <= 0:
+        return None
+    mid = (a0 + a1) / 2
+    rho = (r_in + r_out) / 2
+    cx, cy = _pt(rho, mid)
+    h = size / 2 + pad
+    full = span >= 2 * math.pi - 1e-9
+    steps = 12
+    for k in range(4 * steps):
+        side, t_ = divmod(k, steps)
+        u = -h + 2 * h * t_ / steps
+        x, y = [(cx + u, cy - h), (cx + h, cy + u), (cx - u, cy + h), (cx - h, cy - u)][side]
+        d = math.hypot(x, y)
+        if d < r_in or d > r_out:
+            return None
+        if full:
+            continue
+        a = _ang_of(x, y)
+        rel = (a - a0) % (2 * math.pi)       # posizione dentro la fetta, da 0 a span
+        edge = gap / 2 / max(d, 1e-6)
+        if rel < edge or rel > span - edge:
+            return None
+    return round(cx, 2), round(cy, 2)
+
+
+def _donut_data(rows: list, total: float, fmt, icon_for, clickable: bool) -> list[dict]:
+    from views import icons as icn
+    pie = [r for r in rows if r[1] > 0]
+    out, acc = [], 0.0
+    for i, r in enumerate(pie):
+        frac = r[1] / total if total else 0
+        a0 = acc * 2 * math.pi
+        acc += frac
+        a1 = (1.0 if i == len(pie) - 1 else acc) * 2 * math.pi
+        mid = (a0 + a1) / 2
+        color = safe_color(r[2])
+        special = len(r) > 3
+        name = icn.GROUP if special and r[3] == _MORE else (icon_for(r[0]) if icon_for else None)
+        item = {"id": (r[3] if special else r[0]) if clickable else None, "name": r[0], "amount": fmt(r[1]),
+                "pct": f"{frac * 100:.0f}%" if frac >= 0.005 else "<1%", "color": color, "i": i,
+                "d": _slice_path(a0, a1), "dx": round(5 * math.sin(mid), 2), "dy": round(-5 * math.cos(mid), 2)}
+        nodes = icn.ICONS.get(name) if name else None
+        pos = _icon_fits(a0, a1) if nodes else None
+        if pos:
+            item["icon"] = {"x": pos[0], "y": pos[1], "s": _D_ICON, "nodes": nodes,
+                            "c": "#1E1B2E" if _luminance(color) > 0.4 else "#FFFFFF"}
+        out.append(item)
+    return out
+
+
+_DONUT_JS = """
+export default function(component) {
+  const { data, setTriggerValue, parentElement } = component;
+  const sig = JSON.stringify(data);
+  if (parentElement.__asSig === sig && parentElement.querySelector('.as-donut')) return;
+  parentElement.__asSig = sig;
+  const old = parentElement.querySelector('.as-donut');
+  if (old) old.remove();
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls;
+                                    if (text !== undefined) n.textContent = text; return n; };
+  const sv = (tag, attrs) => { const n = document.createElementNS(NS, tag);
+                                for (const k in attrs) n.setAttribute(k, attrs[k]); return n; };
+  const root = el('div', 'as-donut' + (data.click ? ' click' : ''));
+  const svg = sv('svg', { viewBox: '-130 -130 260 260', role: 'img', 'aria-label': data.label + ' ' + data.value });
+  const center = el('div', 'c');
+  const cl = el('span', 'l', data.label), cv = el('b', 'v', data.value), cp = el('em', 'p', '');
+  center.appendChild(cl); center.appendChild(cv); center.appendChild(cp);
+  const groups = [];
+  let active = null;
+  const legendRows = () => {
+    const box = parentElement.closest('[data-testid="stVerticalBlock"]');
+    return box ? [...box.querySelectorAll('.as-legend > div')] : [];
+  };
+  const mark = (s) => {
+    for (const row of legendRows()) {
+      const sp = row.querySelector('span');
+      row.classList.toggle('as-hl', !!s && !!sp && sp.textContent === s.name);
+    }
+  };
+  // La fetta scelta si solleva come copia in un livello sopra le altre (l'originale resta al suo posto,
+  // invisibile, e continua a ricevere mouse e clic: spostarla nel disegno farebbe perdere il clic).
+  const layer = sv('g', { class: 'top', 'aria-hidden': 'true' });
+  const release = (g) => {
+    const c = g.__ghost;
+    if (!c) return;
+    c.classList.remove('on');
+    clearTimeout(g.__t);
+    g.__t = setTimeout(() => { if (active !== g && g.__ghost) { g.__ghost.remove(); g.__ghost = null;
+                                                                 g.classList.remove('src'); } }, 460);
+  };
+  const lift = (g) => {
+    clearTimeout(g.__t);
+    let c = g.__ghost;
+    if (!c) {
+      c = g.cloneNode(true);
+      c.classList.add('ghost'); c.classList.remove('src');
+      for (const a of ['tabindex', 'role', 'aria-label']) c.removeAttribute(a);
+      g.__ghost = c;
+    }
+    layer.appendChild(c);
+    g.classList.add('src');
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (active === g) c.classList.add('on'); }));
+  };
+  const show = (g) => {
+    if (active === g) return;
+    const prev = active;
+    active = g;
+    if (prev) release(prev);
+    if (!g) {
+      root.classList.remove('hov'); cl.textContent = data.label; cv.textContent = data.value; cp.textContent = '';
+      mark(null); return;
+    }
+    const s = g.__s;
+    lift(g);
+    root.classList.add('hov'); cl.textContent = s.name; cv.textContent = s.amount; cp.textContent = s.pct;
+    mark(s);
+  };
+  for (const s of data.slices) {
+    const g = sv('g', { class: 'sl' });
+    g.__s = s;
+    g.style.setProperty('--dx', s.dx + 'px'); g.style.setProperty('--dy', s.dy + 'px');
+    const inner = sv('g', { class: 'in' }); inner.style.setProperty('--i', s.i);
+    inner.appendChild(sv('path', { d: s.d, fill: s.color, 'fill-rule': 'evenodd' }));
+    if (s.icon) {
+      const k = s.icon.s / 24;
+      const ic = sv('g', { class: 'ic', transform: 'translate(' + (s.icon.x - s.icon.s / 2) + ' ' + (s.icon.y - s.icon.s / 2)
+                                                  + ') scale(' + k + ')',
+                           fill: 'none', stroke: s.icon.c, 'stroke-width': '2.1', 'stroke-linecap': 'round',
+                           'stroke-linejoin': 'round', 'aria-hidden': 'true' });
+      for (const [tag, attrs] of s.icon.nodes) ic.appendChild(sv(tag, attrs));
+      inner.appendChild(ic);
+    }
+    g.appendChild(inner);
+    g.addEventListener('pointerenter', () => show(g));
+    g.addEventListener('focus', () => show(g));
+    g.addEventListener('blur', () => { if (active === g) show(null); });
+    if (data.click && s.id !== null) {
+      g.setAttribute('tabindex', '0'); g.setAttribute('role', 'button');
+      g.setAttribute('aria-label', data.open + s.name + ', ' + s.amount + ', ' + s.pct);
+      const open = () => setTriggerValue('selected', s.id);
+      g.addEventListener('click', open);
+      g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } });
+    }
+    groups.push(g);
+    svg.appendChild(g);
+  }
+  svg.appendChild(layer);
+  svg.addEventListener('pointerleave', (ev) => { if (ev.pointerType !== 'touch') show(null); });
+  // sul telefono la fetta toccata resta sollevata finché non si tocca altrove
+  const outside = (ev) => {
+    if (!root.isConnected) { document.removeEventListener('pointerdown', outside, true); return; }
+    if (!root.contains(ev.target)) show(null);
+  };
+  document.addEventListener('pointerdown', outside, true);
+  root.appendChild(svg); root.appendChild(center);
+  parentElement.appendChild(root);
+  // passando sulla legenda si solleva la fetta corrispondente
+  const box = parentElement.closest('[data-testid="stVerticalBlock"]');
+  if (box) {
+    if (box.__asDonutOff) box.__asDonutOff();
+    const over = (ev) => {
+      const row = ev.target.closest && ev.target.closest('.as-legend > div');
+      if (!row || !box.contains(row)) return;
+      const sp = row.querySelector('span');
+      const g = sp && groups.find(x => x.__s.name === sp.textContent);
+      show(g || null);
+    };
+    const out = (ev) => {
+      const from = ev.target.closest && ev.target.closest('.as-legend');
+      const to = ev.relatedTarget && ev.relatedTarget.closest && ev.relatedTarget.closest('.as-legend');
+      if (from && from !== to) show(null);
+    };
+    box.addEventListener('pointerover', over); box.addEventListener('pointerout', out);
+    box.__asDonutOff = () => { box.removeEventListener('pointerover', over); box.removeEventListener('pointerout', out); };
+  }
+}
+"""
+_donut_component = None
+
+
+def donut(rows: list[tuple[str, float, str]], center_label: str, center_value: str, fmt, limit: int = 6,
+          key: str | None = None, icons: str | dict | None = "categorie", others: str | None = None,
+          name: str | None = None) -> str | None:
+    """Ciambella con legenda. rows: (nome, importo, colore); oltre `limit` voci raggruppa in 'Altre'.
+    Passando il mouse su una fetta (o sulla sua voce in legenda) la fetta si solleva sopra le altre e al centro
+    compaiono nome, importo e percentuale. Dentro le fette abbastanza grandi c'è un'icona: icons="categorie"
+    (dal nome della categoria), "valute", "tipi" (tipi di investimento), un dizionario nome -> icona, o None.
+    Con `key` fette e legenda sono cliccabili e ritorna il nome della categoria scelta (una volta per clic);
+    senza, `name` distingue i grafici della stessa pagina."""
+    from views import icons as icn
+    rows, total, _ = _group(rows, limit, key, others)
     if not total:
         return None
-    pie = [r for r in rows if r[1] > 0]
-    fig = go.Figure(go.Pie(
-        labels=[r[0] for r in pie], values=[r[1] for r in pie], hole=0.72, sort=False, direction="clockwise",
-        marker=dict(colors=[safe_color(r[2]) for r in pie], line=dict(color="rgba(0,0,0,0)", width=0)),
-        textinfo="none", hovertemplate="%{label}<br>%{value:,.2f}<extra></extra>"))
-    fig.add_annotation(text=f"<span style='font-size:11px'>{e(center_label)}</span><br><b>{e(center_value)}</b>",
-                       showarrow=False, x=0.5, y=0.5, font=dict(size=17))
-    chart(fig, height=230, legend=False)
+    if icons == "categorie":
+        from core import db
+        emoji = {}
+        try:
+            cats = db.categories_df()
+            labels = db.category_labels()
+            for r in cats.itertuples():
+                emoji[labels.get(r.name, r.name)] = r.icon or ""
+                emoji.setdefault(r.name, r.icon or "")
+        except Exception:
+            pass
+        icon_for = lambda n: icn.category_icon(n, emoji.get(n))  # noqa: E731
+    elif icons == "valute":
+        icon_for = icn.currency_icon
+    elif icons == "tipi":
+        icon_for = icn.asset_icon
+    elif isinstance(icons, dict):
+        icon_for = icons.get
+    else:
+        icon_for = None
+    global _donut_component
+    if _donut_component is None:
+        import streamlit.components.v2 as v2
+        _donut_component = v2.component("as_donut", js=_DONUT_JS, isolate_styles=False)
+    slices = _donut_data(rows, total, fmt, icon_for, bool(key))
+    res = _donut_component(data={"slices": slices, "label": center_label, "value": center_value, "click": bool(key),
+                                 "open": t("Apri il dettaglio di ")},
+                           key=f"{key}_pie" if key else name, on_selected_change=lambda: None)
+    pie_sel = getattr(res, "selected", None) if res is not None else None
     if not key:
         items = "".join(f'<div><i style="background:{safe_color(c)}"></i><span>{e(n)}</span><b>{e(fmt(v))}</b>'
                         f'<em>{v / total * 100:.0f}%</em></div>' for n, v, c, *_ in rows)
         st.html(f'<div class="as-legend">{items}</div>')
         return None
-    return _picked(_pick_list(rows, total, fmt, "legend", key), key)
+    leg_sel = _pick_list(rows, total, fmt, "legend", key)
+    return _picked(pie_sel or leg_sel, key)
 
 
 def category_bars(rows: list[tuple[str, float, str]], fmt, limit: int = 8, key: str | None = None,

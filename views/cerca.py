@@ -26,6 +26,8 @@ APP_INDEX = [
      "transazioni elenco lista modifica categoria note esporta csv filtri transactions list edit export", None, None),
     ("p_analisi", "analisi", "Analisi", "Spese ed entrate nel periodo",
      "statistiche grafici report confronto periodo analysis charts statistics", None, None),
+    ("p_assistente", "assistente", "Assistente", "Domande sui tuoi conti, in parole semplici",
+     "ia ai intelligenza artificiale chat claude domande chiedi assistant ask questions", None, None),
     ("a_mese", "analisi", "Spese ed entrate per mese", "Analisi → Per mese",
      "mensile mesi risparmio monthly months savings", "Per mese", None),
     ("a_cat", "analisi", "Spese per categoria", "Analisi → Per categoria",
@@ -121,6 +123,8 @@ APP_INDEX = [
     ("s_email", "impostazioni", "Email e promemoria", "Impostazioni → Email e promemoria",
      "email posta smtp gmail riepilogo mensile promemoria scadenze notifiche bollette mail monthly summary "
      "reminders notifications due bills", "Email e promemoria", None),
+    ("s_ai", "impostazioni", "Assistente IA", "Impostazioni → Assistente IA",
+     "ia ai chiave api anthropic claude modello consenso api key model consent", "Assistente IA", None),
     ("s_update", "impostazioni", "Avviso di nuova versione", "Impostazioni → Generali",
      "aggiornamento nuova versione github release update new version", "Generali", None),
     ("p_utenti", "utenti", "Utenti", "Crea e gestisci gli utenti (amministratore)",

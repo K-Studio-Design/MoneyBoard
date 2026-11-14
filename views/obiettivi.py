@@ -41,12 +41,16 @@ def _ring(pct: float, color: str) -> str:
     import base64
     p = max(0.0, min(100.0, pct))
     r, c = 34, 2 * 3.14159 * 34
+    # l'anello si riempie con un'animazione che sta dentro l'SVG (funziona anche come immagine)
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">'
+           f'<style>.r{{animation:a 1.3s cubic-bezier(.16,1,.3,1) .2s both}}'
+           f'@keyframes a{{from{{stroke-dasharray:0 {c:.1f}}}}}'
+           f'@media (prefers-reduced-motion:reduce){{.r{{animation:none}}}}</style>'
            f'<circle cx="40" cy="40" r="{r}" fill="none" stroke="#8C8AA0" stroke-opacity="0.28" stroke-width="8"/>'
-           f'<circle cx="40" cy="40" r="{r}" fill="none" stroke="{color}" stroke-width="8" stroke-linecap="round"'
+           f'<circle class="r" cx="40" cy="40" r="{r}" fill="none" stroke="{color}" stroke-width="8" stroke-linecap="round"'
            f' stroke-dasharray="{c * p / 100:.1f} {c:.1f}" transform="rotate(-90 40 40)"/></svg>')
     url = "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
-    return f'<div class="ring"><img src="{url}" alt=""><span>{p:.0f}%</span></div>'
+    return f'<div class="ring"><img src="{url}" alt=""><span class="as-count">{p:.0f}%</span></div>'
 
 
 def _plan_text(g: dict, p: goals.Progress, ccy: str) -> str:

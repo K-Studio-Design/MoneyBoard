@@ -26,6 +26,34 @@ def _color(pct: float) -> str:
     return style.ENTRATA
 
 
+def _gauge(rows: list[dict], base: str, current: bool) -> None:
+    """Quadrante del mese: quanto del budget è già speso (budget totale, se c'è, altrimenti la somma dei budget delle
+    categorie), con quanto resta, la previsione a fine mese e quanto si può spendere al giorno."""
+    tot = next((r for r in rows if r["category"] is None), None)
+    cats = [r for r in rows if r["category"]]
+    if tot is None and not cats:
+        return
+    budget = tot["budget"] if tot else sum(r["budget"] for r in cats)
+    spent = tot["spent"] if tot else sum(r["spent"] for r in cats)
+    if budget <= 0:
+        return
+    left = budget - spent
+    pct = spent / budget * 100
+    projected = tot["projected"] if tot else sum(r["projected"] for r in cats)
+    days_left = rows[0]["days_left"] if rows else 0
+    color = _color(pct)
+    if current and left >= 0 and projected > budget * 1.02:
+        color = _color(max(pct, 80.0))
+    chip_items = [(ui.money(abs(left), base), (t("Restano nel totale") if tot else t("Restano")) if left >= 0
+                   else t("Oltre il budget"))]
+    if current:
+        chip_items.append((ui.money(projected, base), t("Previsione a fine mese")))
+        if left > 0 and days_left:
+            chip_items.append((ui.money(left / days_left, base), t("Spendibili al giorno")))
+    style.gauge(pct, f"{pct:.0f}%",
+                t("del budget totale") if tot else t("dei budget delle categorie"), color, chip_items)
+
+
 def _bars(rows: list[dict], base: str, current: bool) -> None:
     labels = db.category_labels()
     colors = ui.color_map()
@@ -132,7 +160,11 @@ def render():
                       "pos" if b_sum - s_sum >= 0 else "neg"),
                      (t("Budget superati"), f"{over}", t("nel mese") if over else t("nessuno, ottimo"),
                       "neg" if over else "pos")]
-            style.kpis(items, cols=4)
+            g_col, k_col = st.columns([1, 1.7], gap="medium", vertical_alignment="center")
+            with g_col:
+                _gauge(rows, base, current)
+            with k_col:
+                style.kpis(items, cols=2)
             st.subheader(_month_label(p))
             _bars(sorted(rows, key=lambda r: (r["category"] is None, -r["pct"])), base, current)
             st.caption(t("Contano tutti i conti, in {ccy}. I rimborsi sulla stessa categoria riducono la spesa. "

@@ -344,6 +344,12 @@ def recurring_series(include_hidden: bool = False):
     return recurring.not_deleted(out) if include_hidden else recurring.visible(out)
 
 
+def recurring_series_all():
+    """Serie ricorrenti di tutti i conti (senza i filtri della barra laterale), senza quelle cancellate."""
+    from core import recurring
+    return recurring.not_deleted(_series_cached(db.data_signature(), (), date.today(), _rules_json()))
+
+
 @st.cache_data(show_spinner=False, max_entries=8)
 def _alerts_cached(signature: str, accounts: tuple[str, ...], today: date, hidden_series: tuple[str, ...],
                    names_sig: str, rules_json: str = "{}", lang: str = "it", budgets_sig: str = "",
