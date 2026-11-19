@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.5.2 (2026-11-19)
+
+**Fixes**
+- Month-end forecast and calendar: the salary could disappear from the expected credits when the bank started
+  writing its description differently (for example after switching from statement import to the direct bank
+  connection, "Salary from COMPANY…" became "Ord: COMPANY Ben: …"). All credits in the Salary category are now
+  one series, whatever the description says, so the next salary is expected again on its date.
+- Recurring payments are no longer split when the same charge comes with different descriptions (e.g.
+  "SpotifyIT Stockholm" and "Spotify P47BC8C353 Stockholm", or "CLAUDE" and "Anthropic* Claude Sub"): same
+  account, category and amount on the usual schedule count as the same subscription, so it stays active and
+  shows up in the expected charges. Occasional spending categories (restaurants, groceries…) are never merged.
+- Incoming SEPA transfers written as "Ord: <payer> Ben: <payee> …" are now grouped by who paid.
+
 ## 1.5.1 (2026-11-14)
 
 **Donut charts**

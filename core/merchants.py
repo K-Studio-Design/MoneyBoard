@@ -26,6 +26,13 @@ def merchant_key(description: str) -> str:
     t = re.sub(r"[^a-zà-ü0-9 ]", " ", t)
     t = re.sub(r"\b\d+\b", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
+    # bonifico ricevuto nel formato SEPA della banca ("Ord: <chi paga> Ben: <chi riceve> Dt-ord: ..."):
+    # conta chi ha ordinato il pagamento, come per un bonifico «da»
+    m = re.match(r"ord (.+?) ben ", t + " ")
+    if m:
+        toks = [w for w in m.group(1).split() if w not in _STOP]
+        if toks:
+            return " ".join(toks[:2])
     person = t.startswith(_TRANSFER_PREFIX)
     changed = True
     while changed:

@@ -712,9 +712,10 @@ div[role="dialog"] {{ border-radius: 22px !important; }}
 .as-badge i {{ width: 7px; height: 7px; border-radius: 50%; background: var(--as-entrata); flex: 0 0 7px;
   animation: as-pulse 2.4s ease-out infinite; }}
 .as-chips {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .6rem; margin-top: .6rem; }}
-.as-chip {{ background: var(--as-field); border-radius: 14px; padding: .55rem .8rem; min-width: 0; }}
-.as-chip span {{ display: block; font-size: .72rem; color: var(--as-muted); white-space: nowrap; overflow: hidden;
-  text-overflow: ellipsis; }}
+.as-chip {{ background: var(--as-field); border-radius: 14px; padding: .55rem .8rem; min-width: 0;
+  display: flex; flex-direction: column; justify-content: space-between; }}
+.as-chip span {{ font-size: .72rem; line-height: 1.25; color: var(--as-muted); overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
 .as-chip b {{ display: block; font-size: 1.02rem; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap;
   margin-top: .1rem; }}
 .as-spark {{ display: flex; align-items: flex-end; gap: 2px; height: 30px; margin-top: .55rem; position: relative; z-index: 1; }}

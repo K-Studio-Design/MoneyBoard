@@ -503,6 +503,16 @@ def detect(df: pd.DataFrame | None = None, today: date | None = None, rules: dic
     d["abs_amount"] = d["amount"].abs()
     d["abs_base"] = val.loc[d.index].abs()
     d["mkey"] = d["description"].map(merchant_key)
+    # stipendio: gli accrediti della categoria «Stipendio» sono una sola serie anche se la banca cambia il
+    # modo di scrivere la descrizione (es. da «Stipendio da AZIENDA…» a «Ord: AZIENDA Ben: …» con il
+    # collegamento diretto alla banca): vale la chiave più frequente, così la serie e le sue scelte restano
+    sal = (d["kind"] == "entrata") & (d["category"] == SALARY_CATEGORY)
+    if sal.any():
+        for ccy, keys in d.loc[sal].groupby("currency")["mkey"]:
+            counts = keys.value_counts()
+            main = sorted(counts.index, key=lambda k: (-int(counts[k]), str(k)))[0]
+            d.loc[sal & (d["currency"] == ccy), "mkey"] = main
+    d["mkey"] = _stitch_keys(d)
     out: list[Series] = []
     for (kind, mkey, ccy), g in d.groupby(["kind", "mkey", "currency"], sort=False):
         if len(g) < 2:
@@ -547,6 +557,80 @@ def detect(df: pd.DataFrame | None = None, today: date | None = None, rules: dic
 
 
 _SALARY_CADENCES = ("settimanale", "bisettimanale", "mensile")
+
+
+def _stitch_keys(d: pd.DataFrame) -> pd.Series:
+    """Chiavi degli esercenti con le «riprese» unite: quando la banca scrive lo stesso addebito ricorrente
+    in modi diversi (es. «SpotifyIT Stockholm» e «Spotify P47BC8C353 Stockholm», «CLAUDE» e «Anthropic* Claude
+    Sub»), le descrizioni hanno chiavi diverse e la serie si spezzerebbe: l'abbonamento sembrerebbe finito.
+    Una chiave B si unisce a una chiave A dello stesso conto, valuta, tipo e categoria quando:
+    - tutti i movimenti di B hanno lo stesso importo, e A ha quell'importo almeno due volte;
+    - insieme, i movimenti con quell'importo hanno una cadenza regolare, la stessa di A da sola (se A ne ha
+      abbastanza per averne una), senza due addebiti troppo vicini.
+    Niente unione nelle categorie di spese occasionali (ristoranti, spesa…) e per importi sotto 1."""
+    keys = d["mkey"].copy()
+    cand = d[~d["category"].isin(_DISCRETIONARY) & (d["abs_amount"] >= 1)]
+    if cand.empty:
+        return keys
+    cols = ["kind", "currency", "account", "category"]
+    alias: dict[tuple, str] = {}
+
+    def dates_of(g: pd.DataFrame) -> np.ndarray:
+        return np.unique(g["date"].to_numpy())
+
+    def gaps_of(ds: np.ndarray) -> np.ndarray:
+        return np.diff(ds).astype("timedelta64[D]").astype(float)
+
+    for grp_key, grp in cand.groupby(cols, sort=False):
+        by_key = {k: g for k, g in grp.groupby("mkey", sort=False)}
+        if len(by_key) < 2:
+            continue
+        # le chiavi con più movimenti fanno da riferimento
+        order = sorted(by_key, key=lambda k: (-len(by_key[k]), str(k)))
+        for new_k in order[::-1]:
+            new = by_key[new_k]
+            amts = new["abs_amount"].round(2).unique()
+            if len(amts) != 1:
+                continue
+            amt = float(amts[0])
+            for old_k in order:
+                if old_k == new_k or (grp_key + (old_k,)) in alias:
+                    continue
+                old = by_key[old_k]
+                if len(old) < len(new):
+                    continue
+                same = old[(old["abs_amount"] - amt).abs() < 0.005]
+                if len(same) < 2:
+                    continue
+                ds = dates_of(pd.concat([same, new]))
+                if len(ds) < len(dates_of(same)) + len(dates_of(new)):
+                    continue                     # stesso giorno in entrambe: sono due cose diverse
+                gaps = gaps_of(ds)
+                cad = _cadence_of(gaps)
+                if cad is None or gaps.min() < 0.5 * cad[1]:
+                    continue
+                own = _cadence_of(gaps_of(dates_of(same))) if len(same) >= 3 else None
+                if own is not None and own[0] != cad[0]:
+                    continue
+                alias[grp_key + (new_k,)] = old_k
+                break
+    if not alias:
+        return keys
+
+    def target(gk: tuple, k: str) -> str:
+        seen = set()
+        while gk + (k,) in alias and k not in seen:
+            seen.add(k)
+            k = alias[gk + (k,)]
+        return k
+
+    for full in alias:
+        gk, k = full[:-1], full[-1]
+        rows = d["mkey"] == k
+        for c, v in zip(cols, gk):
+            rows &= d[c] == v
+        keys[rows] = target(gk, k)
+    return keys
 
 
 def _salary_from_schedule(d: pd.DataFrame, today: pd.Timestamp, rules: dict) -> Series | None:
